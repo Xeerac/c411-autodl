@@ -1,5 +1,9 @@
 # c411-autodl
 
+[![GitHub stars](https://img.shields.io/github/stars/Xeerac/c411-autodl?style=social)](https://github.com/Xeerac/c411-autodl/stargazers)
+[![Licence MIT](https://img.shields.io/github/license/Xeerac/c411-autodl)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+
 **Ajoute automatiquement dans ta seedbox les nouveaux torrents c411 qui t'intéressent, sans jamais faire passer ton ratio sous le seuil que tu choisis.**
 
 Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou Comics/Manga. Dès qu'un torrent correspond à tes critères, il l'envoie dans ton qBittorrent, qui le télécharge puis le seede. Tu peux être prévenu sur Discord ou Telegram.
@@ -481,6 +485,8 @@ c411 met son flux en cache pendant 5 minutes. Vérifier toutes les 60 secondes n
 ## Contribuer
 
 Bugs, idées, améliorations : ouvre une [issue](https://github.com/Xeerac/c411-autodl/issues) ou une pull request. **Ne colle jamais ton `.env` ni tes clés** dans une issue : copie seulement le message d'erreur.
+
+⭐ **Si ce projet te sert, laisse une étoile sur GitHub** (bouton *Star* en haut de la page) : c'est gratuit, et ça aide d'autres membres de c411 à le trouver.
 
 ## Licence
 
