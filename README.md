@@ -473,4 +473,15 @@ c411 met son flux en cache pendant 5 minutes. Vérifier toutes les 60 secondes n
 | `lancer_h24.bat` | Lancement en continu sous Windows |
 | `lancer_h24.sh` | Lancement en continu sous Linux |
 | `installer_service.sh` | Installation en service systemd (Linux) |
+| `LICENSE` | Licence MIT |
 | `donnees/` | Créé au premier lancement : historique et journal, non versionnés |
+
+---
+
+## Contribuer
+
+Bugs, idées, améliorations : ouvre une [issue](https://github.com/Xeerac/c411-autodl/issues) ou une pull request. **Ne colle jamais ton `.env` ni tes clés** dans une issue : copie seulement le message d'erreur.
+
+## Licence
+
+[MIT](LICENSE) : tu peux utiliser, modifier et redistribuer le code librement, à condition de conserver la mention de licence. Le logiciel est fourni sans aucune garantie.
