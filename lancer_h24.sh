@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Lance c411-autodl en continu (un passage toutes les 60 s) sous Linux.
+# Lance c411-autodl en continu (un passage toutes les 5 min) sous Linux.
 # Si le programme s'arrête (plantage, coupure réseau...), il est relancé 30 s plus tard.
 # Ctrl+C pour arrêter.
 #
-# Usage :  bash lancer_h24.sh            (intervalle de 60 s)
-#          bash lancer_h24.sh 120        (intervalle de 120 s)
+# Usage :  bash lancer_h24.sh            (intervalle de 300 s = 5 min)
+#          bash lancer_h24.sh 600        (intervalle de 600 s)
 
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
-INTERVALLE="${1:-60}"
+INTERVALLE="${1:-300}"
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "python3 est introuvable. Installe-le avec : sudo apt install python3"

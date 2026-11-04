@@ -11,7 +11,8 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Aucune installation compliquée** : un seul fichier Python, sans dépendance. Il tourne sous Windows, Linux et sur un VPS.
 - ✅ **Pas besoin de SSH sur la seedbox** : tout passe par l'API officielle de c411 et par la WebUI de qBittorrent.
 - ✅ **Protection du ratio** : rien n'est téléchargé si ton ratio passerait sous le minimum choisi. Le freeleech est pris en compte.
-- ✅ **Filtres** : catégories, nombre minimum de complétés et de seeders, taille maximum, mots exclus.
+- ✅ **Cible ce qui rapporte de l'upload** : ignore les torrents déjà sur-seedés et traite en priorité les plus demandés (beaucoup de leechers, peu de seeders).
+- ✅ **Filtres** : catégories, complétés, seeders, leechers, taille min/max, formats (epub, cbz…), mots requis ou exclus, groupes exclus, expression régulière.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows et service systemd pour Linux, avec redémarrage automatique.
 
@@ -43,14 +44,15 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 
 ## Comment ça marche
 
-Toutes les 60 secondes (c'est réglable), le programme :
+Toutes les 5 minutes (c'est réglable), le programme :
 
 1. **Lit ton ratio** sur c411. S'il est inférieur ou égal au minimum choisi (2,00 par défaut), il se met en pause et réessaie plus tard.
 2. **Lit les derniers torrents** des catégories choisies.
-3. **Filtre** les torrents : au moins N complétés, au moins N seeders, taille maximum, mots exclus, et pas déjà présent dans ta seedbox.
-4. **Calcule ton ratio après téléchargement**. Si un torrent le ferait passer sous le minimum, il le saute. Un torrent freeleech ne compte pas.
-5. **Envoie le .torrent à qBittorrent**, qui télécharge puis seede.
-6. **Te prévient** sur Discord ou Telegram, si tu l'as activé.
+3. **Filtre** les torrents selon tes critères (complétés, seeders, leechers, taille, formats, mots, groupes) et écarte ceux déjà présents dans ta seedbox.
+4. **Classe les torrents restants par intérêt** : ceux qui ont beaucoup de leechers pour peu de seeders passent en premier, car ce sont eux qui te feront envoyer le plus.
+5. **Calcule ton ratio après téléchargement**. Si un torrent le ferait passer sous le minimum, il le saute. Un torrent freeleech ne compte pas.
+6. **Envoie le .torrent à qBittorrent**, qui télécharge puis seede.
+7. **Te prévient** sur Discord ou Telegram, si tu l'as activé.
 
 Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois le même torrent.
 
@@ -220,7 +222,7 @@ python c411_autodl.py --test-notif
 
 ### Sous Windows
 
-Double-clique sur **`lancer_h24.bat`**. Une fenêtre s'ouvre : le programme vérifie toutes les 60 secondes et se relance tout seul s'il plante. Pour l'arrêter, ferme la fenêtre.
+Double-clique sur **`lancer_h24.bat`**. Une fenêtre s'ouvre : le programme vérifie toutes les 5 minutes et se relance tout seul s'il plante. Pour l'arrêter, ferme la fenêtre.
 
 **Pour le lancer automatiquement au démarrage de Windows :**
 
@@ -319,6 +321,21 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `MIN_SEEDERS` | `1` | Nombre minimum de seeders |
 | `TAILLE_MAX` | `0` | Taille maximum d'un torrent : `500Mo`, `2Go`, `1.5Go`… (`0` = pas de limite) |
 | `EXCLUDE_WORDS` | *(vide)* | Mots à exclure du titre, séparés par des virgules, sans tenir compte des majuscules (ex : `pdf,sample`) |
+| `TAILLE_MIN` | `0` | Taille minimum d'un torrent : `100Ko`, `1Mo`… Écarte les fichiers suspects (`0` = pas de minimum) |
+| `FORMATS` | *(vide)* | Formats acceptés, cherchés dans le titre (ex : `epub,cbz,cbr`). Vide = tous |
+| `MOTS_REQUIS` | *(vide)* | Le titre doit contenir **au moins un** de ces mots (ex : `fr,french,vf`) |
+| `GROUPES_EXCLUS` | *(vide)* | Groupes de release à exclure, c'est-à-dire ce qui suit le dernier tiret du titre (ex : `notag`) |
+| `REGEX_EXCLUSION` | *(vide)* | Pour les avancés : expression régulière d'exclusion, sans tenir compte des majuscules (ex : `\bscann?e?\b\|\bocr\b` pour écarter les scans) |
+
+### Cibler ce qui rapporte de l'upload
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `MAX_SEEDERS` | `0` | Ignore les torrents qui ont déjà plus de N seeders (`0` = pas de limite) |
+| `MIN_LEECHERS` | `0` | Ne prend que les torrents avec au moins N leechers (`0` = pas de minimum) |
+| `TRI` | `interet` | `interet` : les plus demandés d'abord (leechers ÷ seeders). `recent` : ordre de c411, les plus récents d'abord |
+
+> 💡 **Pourquoi c'est important :** sur c411, un ebook a souvent **50 seeders ou plus**. En le seedant, tu n'enverras presque rien, puisque des dizaines d'autres seeders répondent déjà à la demande. Pour faire monter ton volume envoyé, vise les torrents peu seedés et demandés. Un bon point de départ : `MAX_SEEDERS=20` et `TRI=interet`. Lance d'abord un `--dry-run -v` pour voir combien de torrents restent avec tes réglages.
 
 ### Ratio
 
@@ -365,8 +382,8 @@ Tous les réglages se trouvent dans le fichier `.env`.
 |---|---|
 | `python c411_autodl.py --dry-run` | Essai à blanc : affiche ce qui serait ajouté, sans rien ajouter |
 | `python c411_autodl.py` | Un seul passage |
-| `python c411_autodl.py --boucle` | En continu, un passage toutes les 60 s |
-| `python c411_autodl.py --boucle 300` | En continu, un passage toutes les 300 s |
+| `python c411_autodl.py --boucle` | En continu, un passage toutes les 300 s (5 min) |
+| `python c411_autodl.py --boucle 600` | En continu, un passage toutes les 600 s |
 | `python c411_autodl.py --pages 6` | Lit 6 pages au lieu de la valeur de `PAGES` |
 | `python c411_autodl.py --rattrapage` | Parcourt le catalogue au maximum, pour remplir la seedbox la première fois |
 | `python c411_autodl.py --test-notif` | Envoie une notification de test |
@@ -446,7 +463,7 @@ Le fichier a été enregistré avec des fins de ligne Windows. Corrige-le avec `
 <details>
 <summary><b>Un nouveau torrent met quelques minutes à être détecté</b></summary>
 
-c411 met son flux en cache pendant 5 minutes. Vérifier toutes les 60 secondes ne rend donc pas la détection plus rapide. C'est sans conséquence : le programme fait environ 3 requêtes par minute, pour une limite autorisée de 120.
+c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme vérifie toutes les 5 minutes par défaut. Vérifier plus souvent ne rendrait pas la détection plus rapide.
 </details>
 
 <details>

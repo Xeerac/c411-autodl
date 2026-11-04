@@ -23,6 +23,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -78,6 +79,21 @@ def parse_size(raw: str) -> int:
         if text.endswith(suffix):
             return int(float(text[: -len(suffix)]) * mult)
     return int(float(text) * 1024**2)
+
+
+def _words(name: str) -> list[str]:
+    """Liste séparée par des virgules, en minuscules."""
+    return [w.strip().lower() for w in env(name, "").split(",") if w.strip()]
+
+
+def _regex(name: str):
+    raw = env(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return re.compile(raw, re.IGNORECASE)
+    except re.error as e:
+        sys.exit(f"{name} : expression régulière invalide ({e})")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -196,6 +212,7 @@ class C411:
                 "infohash": (attrs.get("infohash") or "").lower(),
                 "completed": _int(attrs.get("grabs")),
                 "seeders": _int(attrs.get("seeders")),
+                "leechers": _leechers(attrs),
                 "category": attrs.get("category") or it.findtext("category") or "",
                 "page": it.findtext("comments") or it.findtext("link") or "",
                 # 0 = freeleech (ne compte pas dans le reçu), 0.5 = silver, 1 = normal
@@ -227,6 +244,16 @@ def _float(value, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _leechers(attrs: dict) -> int:
+    """Leechers d'un résultat Torznab : attribut « leechers », sinon « peers » − « seeders »."""
+    if attrs.get("leechers") is not None:
+        return _int(attrs.get("leechers"))
+    peers, seeders = _int(attrs.get("peers")), _int(attrs.get("seeders"))
+    if peers < 0 or seeders < 0:
+        return -1  # inconnu
+    return max(peers - seeders, 0)
 
 
 def _int(value) -> int:
@@ -425,7 +452,7 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
     added_items: list[dict] = []
     budget_bytes = free - min_free if free >= 0 else None
 
-    for it in _scan(c411, args, cfg):
+    for it in _ordered(_scan(c411, args, cfg), cfg):
         if added >= cfg["max_per_run"]:
             log.info("Maximum par passage atteint (%d)", cfg["max_per_run"])
             return _finish(added, skipped, total_bytes, args, ctx, added_items, up, down + counted_bytes)
@@ -453,8 +480,9 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
                 continue
 
         if args.dry_run:
-            log.info("[dry-run] + %s (%s, %d complétés, %d seeders)",
-                     it["title"], _human(it["size"]), it["completed"], it["seeders"])
+            log.info("[dry-run] + %s (%s, %d complétés, %d seeders, %s leechers)",
+                     it["title"], _human(it["size"]), it["completed"], it["seeders"],
+                     it["leechers"] if it["leechers"] >= 0 else "?")
             added += 1
             total_bytes += it["size"]
             counted_bytes += counted
@@ -480,7 +508,8 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
         total_bytes += it["size"]
         counted_bytes += counted
         added_items.append(it)
-        log.info("+ %s (%s, %d complétés)", it["title"], _human(it["size"]), it["completed"])
+        log.info("+ %s (%s, %d complétés, %d seeders, %s leechers)", it["title"], _human(it["size"]),
+                 it["completed"], it["seeders"], it["leechers"] if it["leechers"] >= 0 else "?")
 
     return _finish(added, skipped, total_bytes, args, ctx, added_items, up, down + counted_bytes)
 
@@ -521,16 +550,59 @@ def _scan(c411: C411, args, cfg: dict):
             "Recherche %s : %d nouveaux torrents (%d au total)", label, found, len(seen))
 
 
+def _ordered(items, cfg: dict):
+    """TRI=interet : traite d'abord les torrents les plus demandés (beaucoup de leechers pour peu
+    de seeders), ceux qui rapporteront le plus d'upload. TRI=recent : ordre de c411 (plus récents d'abord)."""
+    if cfg["tri"] != "interet":
+        yield from items
+        return
+    items = list(items)
+    # Tri stable : à intérêt égal, l'ordre de c411 (le plus récent d'abord) est conservé
+    items.sort(key=_interest, reverse=True)
+    yield from items
+
+
+def _interest(it: dict) -> float:
+    leechers = max(it.get("leechers", -1), 0)
+    seeders = max(it.get("seeders", -1), 0)
+    return (leechers + 1) / (seeders + 1)
+
+
+def _has_token(title: str, token: str) -> bool:
+    """Le mot apparaît-il dans le titre comme un élément à part (« [EPUB] », « .epub », « -EPUB- ») ?"""
+    return re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", title) is not None
+
+
+def _group(title: str) -> str:
+    """Groupe de release : ce qui suit le dernier tiret (« …[EPUB]-NOTAG » -> « notag »)."""
+    m = re.search(r"-\s*([A-Za-z0-9_.]+)\s*$", title)
+    return m.group(1).lower() if m else ""
+
+
 def _reject(it: dict, cfg: dict) -> str | None:
     if it["completed"] < cfg["min_completed"]:
         return "complétés" if it["completed"] >= 0 else "complétés inconnu"
     if it["seeders"] >= 0 and it["seeders"] < cfg["min_seeders"]:
         return "seeders"
+    if cfg["max_seeders"] and it["seeders"] > cfg["max_seeders"]:
+        return "trop de seeders"
+    if cfg["min_leechers"] and it.get("leechers", -1) < cfg["min_leechers"]:
+        return "pas assez de leechers"
     if cfg["max_size"] and it["size"] > cfg["max_size"]:
-        return "taille"
+        return "trop gros"
+    if cfg["min_size"] and it["size"] < cfg["min_size"]:
+        return "trop petit"
     title = it["title"].lower()
     if any(w in title for w in cfg["exclude"]):
         return "mot exclu"
+    if cfg["formats"] and not any(_has_token(title, f) for f in cfg["formats"]):
+        return "format non accepté"
+    if cfg["required"] and not any(w in title for w in cfg["required"]):
+        return "aucun mot requis"
+    if cfg["excluded_groups"] and _group(it["title"]) in cfg["excluded_groups"]:
+        return "groupe exclu"
+    if cfg["exclude_regex"] and cfg["exclude_regex"].search(it["title"]):
+        return "regex d'exclusion"
     return None
 
 
@@ -572,9 +644,10 @@ def main() -> None:
                    help="nombre de pages Torznab à parcourir, 6 max (défaut : PAGES ou 1)")
     p.add_argument("--rattrapage", action="store_true",
                    help="parcourt le catalogue au maximum (par catégorie et par mot-clé)")
-    p.add_argument("--boucle", type=int, nargs="?", const=60, default=env_int("BOUCLE_SECONDES", 0),
+    # 300 s par défaut : c411 met son flux en cache 5 min, vérifier plus souvent ne sert à rien
+    p.add_argument("--boucle", type=int, nargs="?", const=300, default=env_int("BOUCLE_SECONDES", 0),
                    metavar="SECONDES",
-                   help="tourne en continu, un passage toutes les N secondes (défaut : 60)")
+                   help="tourne en continu, un passage toutes les N secondes (défaut : 300)")
     p.add_argument("--test-notif", action="store_true", help="envoie une notification de test et quitte")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args()
@@ -601,7 +674,17 @@ def main() -> None:
         "min_seeders": env_int("MIN_SEEDERS", 1),
         # TAILLE_MAX (ex : 500Mo, 2Go) ; MAX_SIZE_MB reste accepté pour les anciens .env
         "max_size": parse_size(env("TAILLE_MAX", "") or env("MAX_SIZE_MB", "0")),
-        "exclude": [w.strip().lower() for w in env("EXCLUDE_WORDS", "").split(",") if w.strip()],
+        "exclude": _words("EXCLUDE_WORDS"),
+        # Ciblage de l'upload
+        "max_seeders": env_int("MAX_SEEDERS", 0),
+        "min_leechers": env_int("MIN_LEECHERS", 0),
+        "tri": env("TRI", "interet").strip().lower(),
+        # Qualité
+        "min_size": parse_size(env("TAILLE_MIN", "0")),
+        "formats": _words("FORMATS"),
+        "required": _words("MOTS_REQUIS"),
+        "excluded_groups": _words("GROUPES_EXCLUS"),
+        "exclude_regex": _regex("REGEX_EXCLUSION"),
         "max_per_run": env_int("MAX_PER_RUN", 50),
         "min_free_gb": env_int("MIN_FREE_GB", 20),
         "min_ratio": float(env("MIN_RATIO", "2.0").replace(",", ".")),

@@ -11,7 +11,7 @@ set -euo pipefail
 SERVICE=c411-autodl
 UNIT="/etc/systemd/system/${SERVICE}.service"
 DIR="$(dirname "$(readlink -f "$0")")"
-INTERVALLE="${INTERVALLE:-60}"
+INTERVALLE="${INTERVALLE:-300}"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "À lancer avec sudo : sudo bash $0 $*"
