@@ -1,0 +1,13 @@
+# Configuration personnelle : clés API, identifiants, webhooks
+.env
+
+# Données locales : historique des ajouts et journal
+donnees/
+state.json
+state.tmp
+*.log
+*.log.*
+
+# Python
+__pycache__/
+*.pyc

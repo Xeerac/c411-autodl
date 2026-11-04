@@ -1,0 +1,5 @@
+* text=auto
+# Les scripts Linux doivent garder des fins de ligne LF, sinon bash refuse de les lancer
+*.sh text eol=lf
+# Le lanceur Windows en CRLF
+*.bat text eol=crlf
