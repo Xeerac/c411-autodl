@@ -223,6 +223,20 @@ class C411:
     def download(self, link: str) -> bytes:
         return self._get(link)
 
+    def exists(self, infohash: str) -> bool | None:
+        """Le torrent existe-t-il encore sur c411 ? True / False (404) / None si on ne peut pas savoir."""
+        try:
+            self._get(f"{self.base}/api/torrents/{infohash}")
+            return True
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False
+            log.warning("c411 : impossible de vérifier %s (HTTP %d)", infohash[:8], e.code)
+            return None
+        except Exception as e:
+            log.warning("c411 : impossible de vérifier %s (%s)", infohash[:8], e)
+            return None
+
     def ratio(self) -> tuple[float, int, int, bool]:
         """Retourne (ratio, envoyé, reçu, téléchargement autorisé) depuis /api/user/profile."""
         try:
@@ -311,6 +325,27 @@ class QBit:
         except urllib.error.HTTPError as e:
             if e.code != 409:  # 409 = existe déjà
                 raise
+
+    def torrents(self, tag: str = "") -> list[dict]:
+        query = "?" + urllib.parse.urlencode({"tag": tag}) if tag else ""
+        return json.loads(self._req("torrents/info" + query))
+
+    def trackers(self, h: str) -> list[dict]:
+        return json.loads(self._req("torrents/trackers?" + urllib.parse.urlencode({"hash": h})))
+
+    def delete(self, h: str, delete_files: bool) -> None:
+        self._form("torrents/delete", {"hashes": h, "deleteFiles": str(delete_files).lower()})
+
+    def stop(self, h: str) -> None:
+        try:
+            self._form("torrents/stop", {"hashes": h})  # qBittorrent 5.x
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            self._form("torrents/pause", {"hashes": h})  # qBittorrent 4.x
+
+    def add_tags(self, h: str, tags: str) -> None:
+        self._form("torrents/addTags", {"hashes": h, "tags": tags})
 
     def add(self, filename: str, torrent: bytes, category: str, tags: str, save_path: str, paused: bool) -> None:
         fields = {"category": category, "tags": tags,
@@ -612,6 +647,87 @@ def _human(n: int) -> str:
     return f"{n / 1024**2:.1f} Mo"
 
 
+# --------------------------------------------------------------------------- nettoyage
+
+# Messages renvoyés par un tracker quand le torrent n'existe plus (c411 : « Torrent removed by its uploader »)
+REMOVED_RE = re.compile(r"removed|unregistered|not registered|not found|deleted|supprim|inexistant|introuvable",
+                        re.IGNORECASE)
+
+
+def cleanup(args, cfg: dict, ctx: dict) -> int:
+    """Retire de qBittorrent les torrents supprimés de c411. Retourne le nombre de torrents traités.
+
+    Un torrent n'est retiré que si DEUX signaux concordent : les trackers c411 de qBittorrent signalent
+    sa suppression ET l'API c411 répond 404. Une panne de c411 ne peut donc rien supprimer.
+    """
+    qbit, c411 = ctx["qbit"], ctx["c411"]
+    action = cfg["cleanup_action"]
+    qbit.login(quiet=True)
+    everything = qbit.torrents()
+    scope = [t for t in everything if cfg["cleanup_tag"] in [x.strip() for x in t.get("tags", "").split(",")]]
+    log.debug("Nettoyage : vérification de %d torrents (tag « %s »)", len(scope), cfg["cleanup_tag"])
+
+    done = 0
+    for t in scope:
+        h = t["hash"].lower()
+        c411_trackers = [tr for tr in qbit.trackers(h)
+                         if "c411" in (urllib.parse.urlsplit(tr.get("url", "")).hostname or "")]
+        if not c411_trackers:
+            continue
+        # Au moins un tracker c411 signale la suppression, et aucun ne fonctionne (statut 2 = OK)
+        if any(tr.get("status") == 2 for tr in c411_trackers):
+            continue
+        removed_msg = next((tr["msg"] for tr in c411_trackers if REMOVED_RE.search(tr.get("msg") or "")), None)
+        if not removed_msg:
+            continue
+        if c411.exists(h) is not False:  # confirmation par l'API : seul un 404 compte
+            log.info("Nettoyage : %s signalé « %s » mais toujours présent sur c411, on ne touche à rien",
+                     t["name"], removed_msg)
+            continue
+
+        # Fichiers partagés avec un autre torrent (cross-seed sur un autre tracker) : on les garde
+        shared = any(o["hash"] != t["hash"] and o.get("content_path") == t.get("content_path") for o in everything)
+        if action == "pause":
+            what = "mis en pause (tag c411-supprime)"
+        elif action == "fichiers" and not shared:
+            what = "retiré, fichiers supprimés"
+        else:
+            what = "retiré, fichiers conservés" + (" (utilisés par un autre torrent)" if shared else "")
+
+        if args.dry_run:
+            log.info("[dry-run] Supprimé de c411 (« %s ») : %s serait %s", removed_msg, t["name"], what)
+            done += 1
+            continue
+        try:
+            if action == "pause":
+                qbit.stop(h)
+                qbit.add_tags(h, "c411-supprime")
+            else:
+                qbit.delete(h, delete_files=(action == "fichiers" and not shared))
+        except Exception as e:
+            log.error("Nettoyage : échec pour %s : %s", t["name"], e)
+            continue
+        done += 1
+        log.info("🗑️ Supprimé de c411 (« %s ») : %s %s", removed_msg, t["name"], what)
+        if ctx.get("notifier"):
+            ctx["notifier"].send(f"🗑️ **Supprimé de c411** ({removed_msg}) : {t['name']}, {what}.")
+    return done
+
+
+def maybe_cleanup(args, cfg: dict, ctx: dict, force: bool = False) -> None:
+    if not cfg["cleanup"] and not force:
+        return
+    now = time.monotonic()
+    if not force and args.boucle and now - ctx.get("last_cleanup", -1e9) < cfg["cleanup_minutes"] * 60:
+        return
+    ctx["last_cleanup"] = now
+    try:
+        n = cleanup(args, cfg, ctx)
+        (log.info if n or not args.boucle else log.debug)("Nettoyage terminé : %d torrent(s) supprimé(s) de c411", n)
+    except Exception as e:
+        log.error("Nettoyage interrompu : %s", e)
+
+
 def _finish(added: int, skipped: int, total_bytes: int, args,
             ctx: dict | None = None, items: list | None = None, up: int = 0, down: int = 0) -> int:
     verb = "seraient ajoutés" if args.dry_run else "ajoutés"
@@ -649,6 +765,8 @@ def main() -> None:
                    metavar="SECONDES",
                    help="tourne en continu, un passage toutes les N secondes (défaut : 300)")
     p.add_argument("--test-notif", action="store_true", help="envoie une notification de test et quitte")
+    p.add_argument("--nettoyage", action="store_true",
+                   help="vérifie tout de suite les torrents supprimés de c411, puis quitte (combinable avec --dry-run)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args()
 
@@ -696,7 +814,16 @@ def main() -> None:
         "qbit_tags": env("QBIT_TAGS", "c411,autodl"),
         "qbit_savepath": env("QBIT_SAVEPATH", ""),
         "qbit_paused": env_bool("QBIT_PAUSED", False),
+        # Nettoyage des torrents supprimés de c411 (désactivé par défaut : il supprime des fichiers)
+        "cleanup": env_bool("NETTOYAGE_SUPPRIMES", False),
+        "cleanup_action": env("NETTOYAGE_ACTION", "fichiers").strip().lower(),
+        "cleanup_tag": env("NETTOYAGE_TAG", "autodl").strip(),
+        "cleanup_minutes": env_int("NETTOYAGE_MINUTES", 60),
     }
+    if cfg["cleanup_action"] not in ("fichiers", "torrent", "pause"):
+        sys.exit("NETTOYAGE_ACTION doit valoir fichiers, torrent ou pause")
+    if not cfg["cleanup_tag"]:
+        sys.exit("NETTOYAGE_TAG ne peut pas être vide (sinon tous les torrents seraient concernés)")
 
     if cfg["min_ratio"] > 0 and not cfg["profile_key"]:
         sys.exit("MIN_RATIO est activé : ajoute C411_PROFILE_API_KEY dans .env "
@@ -719,16 +846,23 @@ def main() -> None:
     elif args.test_notif:
         sys.exit("Aucune notification configurée (DISCORD_WEBHOOK_URL ou TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID).")
 
+    if args.nettoyage:
+        maybe_cleanup(args, cfg, ctx, force=True)
+        return
+
     if not args.boucle:
         try:
             run_once(args, cfg, ctx)
         except Exception as e:
             log.error("Passage interrompu : %s", e)
             sys.exit(1)
+        maybe_cleanup(args, cfg, ctx)
         return
 
-    log.info("Démarrage en continu : un passage toutes les %d s (ratio minimum %.2f%s). Ctrl+C pour arrêter.",
-             args.boucle, cfg["min_ratio"], ", notifications actives" if ctx.get("notifier") else "")
+    log.info("Démarrage en continu : un passage toutes les %d s (ratio minimum %.2f%s%s). Ctrl+C pour arrêter.",
+             args.boucle, cfg["min_ratio"], ", notifications actives" if ctx.get("notifier") else "",
+             f", nettoyage des supprimés toutes les {cfg['cleanup_minutes']} min ({cfg['cleanup_action']})"
+             if cfg["cleanup"] else "")
     total_added = errors = 0
     last_beat = time.monotonic()
     try:
@@ -742,6 +876,8 @@ def main() -> None:
                 # On signale la première erreur, puis une sur dix pour ne pas inonder le journal
                 if errors == 1 or errors % 10 == 0:
                     log.error("Passage interrompu (%d erreur(s) d'affilée) : %s", errors, e)
+            # Indépendant du ratio : tourne même quand les ajouts sont en pause
+            maybe_cleanup(args, cfg, ctx)
             if time.monotonic() - last_beat >= 3600:  # signe de vie toutes les heures
                 ratio = ctx.get("last_ratio")
                 log.info("Toujours actif : %d torrents ajoutés depuis le démarrage%s", total_added,

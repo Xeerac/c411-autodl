@@ -13,6 +13,7 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Protection du ratio** : rien n'est téléchargé si ton ratio passerait sous le minimum choisi. Le freeleech est pris en compte.
 - ✅ **Cible ce qui rapporte de l'upload** : ignore les torrents déjà sur-seedés et traite en priorité les plus demandés (beaucoup de leechers, peu de seeders).
 - ✅ **Filtres** : catégories, complétés, seeders, leechers, taille min/max, formats (epub, cbz…), mots requis ou exclus, groupes exclus, expression régulière.
+- ✅ **Nettoyage automatique** (optionnel) : retire de qBittorrent les torrents supprimés de c411, avec une double vérification.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows et service systemd pour Linux, avec redémarrage automatique.
 
@@ -53,6 +54,7 @@ Toutes les 5 minutes (c'est réglable), le programme :
 5. **Calcule ton ratio après téléchargement**. Si un torrent le ferait passer sous le minimum, il le saute. Un torrent freeleech ne compte pas.
 6. **Envoie le .torrent à qBittorrent**, qui télécharge puis seede.
 7. **Te prévient** sur Discord ou Telegram, si tu l'as activé.
+8. **Toutes les heures** (si `NETTOYAGE_SUPPRIMES=true`), il retire de qBittorrent les torrents qui ont été supprimés de c411.
 
 Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois le même torrent.
 
@@ -365,6 +367,24 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `QBIT_SAVEPATH` | *(vide)* | Dossier de téléchargement (vide = dossier par défaut de qBittorrent) |
 | `QBIT_PAUSED` | `false` | `true` = les torrents sont ajoutés en pause |
 
+### Nettoyage des torrents supprimés de c411
+
+Quand un torrent est supprimé de c411 (retiré par son uploader, doublon, etc.), il reste dans qBittorrent avec une erreur de tracker et ne rapporte plus rien. Le nettoyage s'en occupe.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `NETTOYAGE_SUPPRIMES` | `false` | `true` active le nettoyage |
+| `NETTOYAGE_ACTION` | `fichiers` | `fichiers` : retire le torrent **et supprime ses fichiers**. `torrent` : retire le torrent, garde les fichiers. `pause` : met en pause et ajoute le tag `c411-supprime`, sans rien supprimer |
+| `NETTOYAGE_TAG` | `autodl` | Seuls les torrents qui portent ce tag sont vérifiés, c'est-à-dire par défaut ceux ajoutés par le programme |
+| `NETTOYAGE_MINUTES` | `60` | Fréquence de la vérification |
+
+**Sécurités :**
+- un torrent n'est retiré que si **deux signaux concordent** : les trackers c411 de qBittorrent signalent sa suppression (par exemple « Torrent removed by its uploader »), **et** l'API c411 confirme qu'il n'existe plus. Une panne de c411 ou une erreur réseau ne peut donc rien supprimer ;
+- si les fichiers servent aussi à un **autre torrent** (cross-seed sur un autre tracker), seul le torrent c411 est retiré et les fichiers sont gardés ;
+- tes torrents ajoutés à la main ne sont jamais touchés, car ils n'ont pas le tag `autodl`.
+
+Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --nettoyage --dry-run`.
+
 ### Notifications
 
 | Réglage | Défaut | Description |
@@ -387,6 +407,8 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `python c411_autodl.py --pages 6` | Lit 6 pages au lieu de la valeur de `PAGES` |
 | `python c411_autodl.py --rattrapage` | Parcourt le catalogue au maximum, pour remplir la seedbox la première fois |
 | `python c411_autodl.py --test-notif` | Envoie une notification de test |
+| `python c411_autodl.py --nettoyage --dry-run` | Affiche les torrents supprimés de c411 qui seraient retirés, sans rien toucher |
+| `python c411_autodl.py --nettoyage` | Lance le nettoyage tout de suite |
 | `python c411_autodl.py -v` | Mode détaillé : affiche chaque torrent ignoré et la raison |
 
 Les options se combinent, par exemple `--rattrapage --dry-run`.
