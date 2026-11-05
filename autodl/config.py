@@ -73,6 +73,8 @@ GROUPS: dict[str, tuple[str, str]] = {
     "limites": ("Limites et rythme", "Fréquence des passages, quantités et marges de sécurité."),
     "freeleech": ("Mode freeleech", "Recherche élargie quand un freeleech est actif sur ton compte."),
     "nettoyage": ("Nettoyage", "Retrait des torrents supprimés de c411."),
+    "inactifs": ("Torrents inactifs", "Retrait des torrents qui n'envoient plus rien, après le temps de seed "
+                                      "exigé par c411 (72 h)."),
     "integrations": ("Intégrations", "cross-seed et Prowlarr, si tu les utilises. Laisse vide sinon : "
                                      "l'interface s'adapte."),
     "bilan": ("Bilan quotidien", "Résumé de la journée : volumes, ratio, rendement par type."),
@@ -178,6 +180,20 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("NETTOYAGE_TAG", "own_tag", "str", "autodl", "nettoyage", "Tag des torrents gérés",
             "Seuls ces torrents sont nettoyés, envoyés à cross-seed et comptés dans le bilan.", advanced=True),
     Setting("NETTOYAGE_MINUTES", "cleanup_minutes", "int", 60, "nettoyage", "Fréquence (minutes)", minimum=1),
+
+    # --- Torrents inactifs
+    Setting("INACTIFS_RETIRER", "inactive", "bool", False, "inactifs", "Retirer les torrents inactifs",
+            "Seulement ceux du tag géré (autodl), complets, sans leecher, et dont le tracker c411 répond. "
+            "Fais d'abord un aperçu depuis le tableau de bord."),
+    Setting("INACTIFS_JOURS", "inactive_days", "int", 30, "inactifs", "Inactif depuis (jours)",
+            "Rien envoyé depuis ce nombre de jours.", minimum=1),
+    Setting("INACTIFS_SEED_MIN_HEURES", "inactive_seed_hours", "int", 96, "inactifs", "Seed minimum (heures)",
+            "Jamais moins de 72 h, la règle Hit & Run de c411. 96 h = 24 h de marge.", minimum=72),
+    Setting("INACTIFS_ACTION", "inactive_action", "choice", "fichiers", "inactifs", "Action",
+            "fichiers : retire le torrent et ses fichiers (gardés s'ils sont partagés). torrent : garde les "
+            "fichiers. pause : met en pause avec le tag inactif.", choices=("fichiers", "torrent", "pause")),
+    Setting("INACTIFS_MAX_PAR_JOUR", "inactive_max_per_day", "int", 10, "inactifs", "Retraits maximum par jour",
+            "Garde-fou : le reste attend le lendemain.", minimum=1),
 
     # --- cross-seed
     Setting("CROSS_SEED_URL", "cs_url", "str", "", "integrations", "Adresse de cross-seed",

@@ -71,8 +71,9 @@ Toutes les 5 minutes (c'est réglable), le programme :
 6. **Envoie le .torrent à qBittorrent**, qui télécharge puis seede.
 7. **Te prévient** sur Discord ou Telegram, si tu l'as activé.
 8. **Toutes les heures** (si `NETTOYAGE_SUPPRIMES=true`), il retire de qBittorrent les torrents qui ont été supprimés de c411.
-9. **Dès qu'un téléchargement est terminé** (si `CROSS_SEED_URL` est rempli), il prévient cross-seed.
-10. **Chaque matin** (si `BILAN_QUOTIDIEN=true`), il t'envoie un bilan.
+9. **Toutes les heures** (si `INACTIFS_RETIRER=true`), il retire les torrents qui n'envoient plus rien depuis 30 jours, une fois le temps de seed exigé par c411 largement dépassé.
+10. **Dès qu'un téléchargement est terminé** (si `CROSS_SEED_URL` est rempli), il prévient cross-seed.
+11. **Chaque matin** (si `BILAN_QUOTIDIEN=true`), il t'envoie un bilan.
 
 Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois le même torrent.
 
@@ -357,7 +358,7 @@ Ton `.env` et ton dossier `donnees/` sont repris tels quels. Le conteneur utilis
 
 Pour **revenir à systemd** : `sudo bash migrer_vers_docker.sh --retour`.
 
-**Toutes les commandes ponctuelles** passent par `docker compose run --rm c411-autodl …`, par exemple `--bilan`, `--nettoyage --dry-run` ou `--recategoriser --dry-run`.
+**Toutes les commandes ponctuelles** passent par `docker compose run --rm c411-autodl …`, par exemple `--bilan`, `--nettoyage --dry-run`, `--inactifs --dry-run` ou `--recategoriser --dry-run`.
 
 **Tu as déjà un `docker-compose.yml`**, avec cross-seed, Prowlarr… ? Copie le bloc `c411-autodl` du fichier fourni dans le tien, en adaptant les chemins de `build:` et `volumes:`. Dans ce cas :
 
@@ -566,6 +567,29 @@ Quand un torrent est supprimé de c411 (retiré par son uploader, doublon, etc.)
 
 Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --nettoyage --dry-run`.
 
+### Retrait des torrents inactifs
+
+Un torrent qui n'envoie plus rien depuis des semaines occupe de la place sans rapporter. Le retrait des inactifs fait le tri, en respectant la règle **Hit & Run de c411** : un torrent doit être seedé **72 h** (ou atteindre un ratio de 1,0) avant de pouvoir être retiré.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `INACTIFS_RETIRER` | `false` | `true` active le retrait des inactifs |
+| `INACTIFS_JOURS` | `30` | Un torrent est inactif s'il n'a rien envoyé depuis ce nombre de jours |
+| `INACTIFS_SEED_MIN_HEURES` | `96` | Temps de seed minimum avant tout retrait. **Jamais moins de 72 h**, même si tu indiques moins ; 96 h = 24 h de marge |
+| `INACTIFS_ACTION` | `fichiers` | `fichiers` : retire le torrent **et supprime ses fichiers**. `torrent` : garde les fichiers. `pause` : met en pause avec le tag `inactif` |
+| `INACTIFS_MAX_PAR_JOUR` | `10` | Retraits maximum par jour, le reste attend le lendemain |
+
+**Un torrent n'est retiré que si toutes ces conditions sont réunies :**
+- il porte le tag `autodl` : tes torrents ajoutés à la main et les cross-seeds ne sont jamais touchés ;
+- il est complet et a seedé au moins `INACTIFS_SEED_MIN_HEURES`, d'après le temps de seed de qBittorrent. Le ratio par torrent n'est pas utilisé pour aller plus vite, car celui de qBittorrent peut différer de celui de c411 ;
+- il n'a rien transféré depuis `INACTIFS_JOURS` jours ;
+- **personne ne l'attend** : aucun leecher connecté, ni annoncé par le tracker ;
+- un tracker c411 répond normalement : un tracker en panne fausserait les informations précédentes.
+
+Si les fichiers servent aussi à un **autre torrent** (cross-seed), ils sont gardés. Les plus anciennement inactifs partent en premier.
+
+Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --inactifs --dry-run`, ou le bouton « Aperçu des inactifs » du tableau de bord.
+
 ### Mode freeleech
 
 Pendant un **freeleech sur ton compte** (événement du site, fenêtre freeleech, freeleech personnel), ce que tu télécharges **ne compte pas** dans ton ratio, mais ce que tu envoies compte. C'est le meilleur moment pour récupérer beaucoup de contenu à seeder. Avec `FREELEECH_MODE=true`, le programme le détecte via ton profil c411 et :
@@ -655,6 +679,8 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `python c411_autodl.py --test-notif` | Envoie une notification de test |
 | `python c411_autodl.py --nettoyage --dry-run` | Affiche les torrents supprimés de c411 qui seraient retirés, sans rien toucher |
 | `python c411_autodl.py --nettoyage` | Lance le nettoyage tout de suite |
+| `python c411_autodl.py --inactifs --dry-run` | Affiche les torrents inactifs qui seraient retirés, sans rien toucher |
+| `python c411_autodl.py --inactifs` | Retire tout de suite les torrents inactifs (même si `INACTIFS_RETIRER=false`) |
 | `python c411_autodl.py --bilan` | Affiche le bilan tout de suite (et l'envoie en notification) |
 | `python c411_autodl.py --recategoriser --dry-run` | Montre comment les torrents existants seraient rangés par type |
 | `python c411_autodl.py --recategoriser` | Range les torrents existants (ajoute `--garder-emplacement` pour ne déplacer aucun fichier) |

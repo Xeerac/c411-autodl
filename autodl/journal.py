@@ -15,7 +15,7 @@ import threading
 CATEGORIES = {
     "ajout": re.compile(r"^(\+ |\[dry-run\] \+ )"),
     "freeleech": re.compile(r"freeleech", re.IGNORECASE),
-    "nettoyage": re.compile(r"Supprimé de c411|Nettoyage", re.IGNORECASE),
+    "nettoyage": re.compile(r"Supprimé de c411|Nettoyage|Inactif", re.IGNORECASE),
     "crossseed": re.compile(r"cross-seed", re.IGNORECASE),
 }
 

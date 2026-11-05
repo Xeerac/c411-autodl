@@ -1,5 +1,16 @@
 # Historique des versions
 
+## v2.2.0 — 2026-11-05
+
+**Retrait des torrents inactifs** (`INACTIFS_RETIRER`, désactivé par défaut) :
+- retire les torrents autodl qui n'ont **rien envoyé depuis 30 jours** (`INACTIFS_JOURS`) et que **personne n'attend** (aucun leecher) ;
+- respecte la règle **Hit & Run de c411** : au moins **96 h de seed** (`INACTIFS_SEED_MIN_HEURES`), jamais moins de 72 h quoi qu'on règle ;
+- ne touche à rien si aucun tracker c411 ne répond normalement ; garde les fichiers partagés avec un cross-seed ;
+- 10 retraits maximum par jour (`INACTIFS_MAX_PAR_JOUR`), les plus anciennement inactifs d'abord, et une notification récapitulative ;
+- action au choix : supprimer les fichiers, garder les fichiers, ou mettre en pause (tag `inactif`) ;
+- aperçu sans rien toucher : `--inactifs --dry-run`, ou le bouton « Aperçu des inactifs » du tableau de bord ; nouveau groupe « Torrents inactifs » dans la configuration ;
+- 134 tests (11 de plus).
+
 ## v2.1.0 — 2026-11-05
 
 **Nouvel onglet « Relevés »** dans l'interface web :

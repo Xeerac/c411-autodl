@@ -578,7 +578,7 @@ class TestPagesTableau(WebCase):
         self.assertNotIn("mdp-qbit", text)
 
     def test_actions_de_taches_acceptees(self):
-        for action in ("essai", "bilan", "nettoyage_apercu", "rangement_apercu"):
+        for action in ("essai", "bilan", "nettoyage_apercu", "inactifs_apercu", "rangement_apercu"):
             r = self.client.post(f"/api/action/{action}", headers={"X-CSRF-Token": self.csrf})
             self.assertEqual(r.json(), {"ok": True, "action": action})
         self.assertEqual(self.client.post("/api/action/nettoyage", headers={"X-CSRF-Token": self.csrf}).status_code, 404)

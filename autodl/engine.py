@@ -14,6 +14,7 @@ import types
 
 from .commun import __version__, log
 from .contexte import build_context
+from .inactifs import maybe_inactive, retire_inactive
 from .releves import maybe_releve
 from .moteur import _safe, cleanup, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once, watchdog
 
@@ -22,11 +23,12 @@ TASKS = {
     "essai": "Essai à blanc",
     "bilan": "Bilan",
     "nettoyage_apercu": "Aperçu du nettoyage",
+    "inactifs_apercu": "Aperçu des inactifs",
     "rangement_apercu": "Aperçu du rangement",
 }
 ACTIONS = ("passage", "pause", "reprise", "recharger", "arret", *TASKS)
 # Informations d'état gardées quand la configuration change
-KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "down_since", "categories_ok", "releves")
+KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "last_inactive", "down_since", "categories_ok", "releves")
 
 
 class Engine:
@@ -108,6 +110,7 @@ class Engine:
             last_error = str(e)[:300]
         # Indépendants du ratio : tournent même quand les ajouts sont en pause
         maybe_cleanup(self.args, self.cfg, self.ctx)
+        maybe_inactive(self.args, self.cfg, self.ctx)
         _safe(maybe_crossseed, self.args, self.cfg, self.ctx)
         maybe_report(self.args, self.cfg, self.ctx)
         _safe(maybe_releve, self.args, self.cfg, self.ctx)  # relevé quotidien (ratio, envoyé, reçu)
@@ -145,6 +148,11 @@ class Engine:
                 n = cleanup(dry, self.cfg, self.ctx)
                 task["resultat"] = (f"{n} torrent(s) supprimé(s) de c411 seraient retirés." if n
                                     else "Aucun torrent supprimé de c411 : rien à nettoyer.")
+            elif name == "inactifs_apercu":
+                n = retire_inactive(dry, self.cfg, self.ctx)
+                task["resultat"] = (f"{n} torrent(s) inactif(s) seraient retirés (au plus "
+                                    f"{self.cfg['inactive_max_per_day']} par jour)." if n
+                                    else "Aucun torrent inactif : rien à retirer.")
             elif name == "rangement_apercu":
                 summary = recategorize(dry, self.cfg, self.ctx)
                 task["resultat"] = (", ".join(f"{n} vers {c}" for c, n in sorted(summary.items()))

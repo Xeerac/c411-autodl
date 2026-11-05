@@ -11,6 +11,7 @@ from .commun import DATA, HERE, __version__, log
 from .config import build_cfg, load_cfg_or_exit
 from .contexte import build_context
 from .engine import Engine
+from .inactifs import maybe_inactive
 from .moteur import _safe, _stop, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once
 from .reglages import ConfigStore
 
@@ -29,6 +30,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--test-notif", action="store_true", help="envoie une notification de test et quitte")
     p.add_argument("--nettoyage", action="store_true",
                    help="vérifie tout de suite les torrents supprimés de c411, puis quitte (combinable avec --dry-run)")
+    p.add_argument("--inactifs", action="store_true",
+                   help="retire tout de suite les torrents inactifs, puis quitte (combinable avec --dry-run)")
     p.add_argument("--bilan", action="store_true",
                    help="affiche (et envoie en notification) le bilan tout de suite, puis quitte")
     p.add_argument("--recategoriser", action="store_true",
@@ -106,6 +109,9 @@ def main(argv=None) -> None:
     if args.nettoyage:
         maybe_cleanup(args, cfg, ctx, force=True)
         return
+    if args.inactifs:
+        maybe_inactive(args, cfg, ctx, force=True)
+        return
     if args.bilan:
         maybe_report(args, cfg, ctx, force=True)
         return
@@ -124,6 +130,7 @@ def main(argv=None) -> None:
             log.error("Passage interrompu : %s", e)
             sys.exit(1)
         maybe_cleanup(args, cfg, ctx)
+        maybe_inactive(args, cfg, ctx)
         _safe(maybe_crossseed, args, cfg, ctx)
         maybe_report(args, cfg, ctx)
         return
@@ -136,6 +143,7 @@ def main(argv=None) -> None:
              f", nettoyage des supprimés toutes les {cfg['cleanup_minutes']} min ({cfg['cleanup_action']})"
              if cfg["cleanup"] else "")
     extras = [name for name, on in (("catégorie par type", cfg["cat_par_type"]),
+                                    (f"retrait des inactifs après {cfg['inactive_days']} j", cfg["inactive"]),
                                     ("cross-seed immédiat", cfg["cs_url"]),
                                     (f"bilan quotidien à {cfg['bilan_heure']} h", cfg["bilan"]),
                                     ("mode freeleech", cfg["fl_mode"]),

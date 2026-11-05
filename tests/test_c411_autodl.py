@@ -15,7 +15,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from autodl import (c411, cli, commun, config, contenu, filtres, moteur,  # noqa: E402
+from autodl import (c411, cli, commun, config, contenu, filtres, inactifs, moteur,  # noqa: E402
                     notifications, qbit, stockage)
 
 # Tous les éléments du programme réunis sous « m », comme avant le découpage en modules
@@ -37,7 +37,8 @@ def base_cfg(**over):
                qbit_savepath="", qbit_paused=False, cat_par_type=False, cat_prefix="c411",
                own_tag="autodl", cleanup_action="fichiers", cs_url="", cs_key="", bilan=False, bilan_heure=8,
                fl_mode=False, fl_cats=[], fl_max_per_run=100, fl_max_size=None, fl_ignore_formats=True,
-               alert=True, alert_after=3)
+               alert=True, alert_after=3, inactive=False, inactive_days=30, inactive_seed_hours=96,
+               inactive_action="fichiers", inactive_max_per_day=10)
     cfg.update(over)
     return cfg
 
@@ -311,6 +312,84 @@ class TestNettoyage(unittest.TestCase):
     def test_dry_run(self):
         n, actions = self.run_cleanup([tor("a")], {"a": self.REMOVED_BOTH}, {"a": False}, dry=True)
         self.assertEqual((n, actions), (1, []))
+
+
+# --------------------------------------------------------------------------- torrents inactifs
+
+NOW = 2_000_000_000.0
+DAY = 86400
+
+
+def idle(h, idle_days=40, seed_hours=200, leechs=0, incomplete=0, **kw):
+    t = tor(h, **kw)
+    t.update(seeding_time=seed_hours * 3600, last_activity=NOW - idle_days * DAY,
+             completion_on=NOW - 60 * DAY, added_on=NOW - 60 * DAY, num_leechs=leechs, num_incomplete=incomplete)
+    return t
+
+
+class TestInactifs(unittest.TestCase):
+    OK = [tr("c411.org", 2)]
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def run_idle(self, torrents, trackers=None, dry=False, tracking=None, **over):
+        qbit = FakeQbit(torrents, trackers or {t["hash"]: self.OK for t in torrents})
+        ctx = {"qbit": qbit, "tracking": tracking or m.Tracking(self.tmp / "t.json")}
+        n = inactifs.retire_inactive(args(dry_run=dry), base_cfg(**over), ctx, now=NOW)
+        return n, qbit.actions
+
+    def test_inactif_retire_avec_ses_fichiers(self):
+        self.assertEqual(self.run_idle([idle("a")]), (1, [("delete", "a", True)]))
+
+    def test_jamais_avant_le_seed_minimum(self):
+        self.assertEqual(self.run_idle([idle("a", seed_hours=95)])[1], [])
+        # même réglé plus bas, jamais moins de 72 h (règle Hit & Run de c411)
+        self.assertEqual(self.run_idle([idle("a", seed_hours=71)], inactive_seed_hours=10)[1], [])
+        self.assertEqual(self.run_idle([idle("a", seed_hours=73)], inactive_seed_hours=10)[0], 1)
+
+    def test_jamais_sans_le_temps_de_seed(self):
+        t = idle("a")
+        del t["seeding_time"]
+        self.assertEqual(self.run_idle([t])[1], [])
+
+    def test_jamais_s_il_a_envoye_recemment(self):
+        self.assertEqual(self.run_idle([idle("a", idle_days=29)])[1], [])
+
+    def test_jamais_si_quelqu_un_attend(self):
+        self.assertEqual(self.run_idle([idle("a", leechs=1)])[1], [])
+        self.assertEqual(self.run_idle([idle("b", incomplete=1)])[1], [])
+
+    def test_jamais_incomplet_ni_sans_le_tag(self):
+        self.assertEqual(self.run_idle([idle("a", progress=0.5)])[1], [])
+        self.assertEqual(self.run_idle([idle("b", tags="cross-seed")])[1], [])
+
+    def test_jamais_si_le_tracker_c411_ne_repond_pas(self):
+        trackers = {"a": [tr("c411.org", 4, "timed out"), tr("tr4ker.net", 2)]}
+        self.assertEqual(self.run_idle([idle("a")], trackers)[1], [])
+
+    def test_fichiers_partages_conserves(self):
+        torrents = [idle("a", path="/d/x"), tor("b", tags="cross-seed", path="/d/x")]
+        self.assertEqual(self.run_idle(torrents, {"a": self.OK})[1], [("delete", "a", False)])
+
+    def test_actions(self):
+        self.assertEqual(self.run_idle([idle("a")], inactive_action="torrent")[1], [("delete", "a", False)])
+        self.assertEqual(self.run_idle([idle("a")], inactive_action="pause")[1],
+                         [("stop", "a"), ("tag", "a", "inactif")])
+
+    def test_plafond_par_jour_le_plus_ancien_d_abord(self):
+        tracking = m.Tracking(self.tmp / "t.json")
+        torrents = [idle("a", idle_days=35), idle("b", idle_days=90), idle("c", idle_days=50)]
+        n, actions = self.run_idle(torrents, tracking=tracking, inactive_max_per_day=2)
+        self.assertEqual(actions, [("delete", "b", True), ("delete", "c", True)])
+        # même jour : plafond atteint, plus rien
+        self.assertEqual(self.run_idle(torrents, tracking=m.Tracking(self.tmp / "t.json"),
+                                       inactive_max_per_day=2)[1], [])
+
+    def test_dry_run(self):
+        torrents = [idle("a"), idle("b")]
+        self.assertEqual(self.run_idle(torrents, dry=True, inactive_max_per_day=1), (2, []))
+        self.assertFalse((self.tmp / "t.json").exists())
 
 
 # --------------------------------------------------------------------------- cross-seed
