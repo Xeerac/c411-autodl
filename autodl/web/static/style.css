@@ -234,7 +234,8 @@ body.auth {
   background: rgba(13, 17, 23, .82); backdrop-filter: saturate(140%) blur(12px);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.brand { display: flex; align-items: center; gap: .6rem; min-width: 0; color: var(--text); text-decoration: none; }
+.brand:hover { color: var(--text); }
 .nav { display: flex; gap: .2rem; margin-left: 1rem; }
 .nav a {
   display: inline-flex; align-items: center; gap: .5rem;
@@ -329,7 +330,8 @@ body.auth {
 
 /* tableau des ajouts */
 .table-wrap { overflow-x: auto; margin: 0 -.35rem; }
-.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); table-layout: fixed; }
+.col-titre { width: auto; } .col-type { width: 7.5rem; } .col-taille { width: 6rem; } .col-envoye { width: 8.5rem; } .col-etat { width: 8.5rem; }
 .table th {
   text-align: left; color: var(--text-4); font-weight: 550; font-size: var(--fs-xs);
   padding: 0 .35rem .6rem; border-bottom: 1px solid var(--line); white-space: nowrap;
@@ -339,7 +341,7 @@ body.auth {
 .table tbody tr:hover { background: rgba(255, 255, 255, .02); }
 .table tr:last-child td { border-bottom: 0; }
 .table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.title-cell { display: grid; gap: .15rem; max-width: 0; width: 52%; }
+.title-cell { display: grid; gap: .15rem; min-width: 0; }
 .title-cell a { color: var(--text); text-decoration: none; font-weight: 500;
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .title-cell a:hover { color: var(--accent-hi); text-decoration: underline; }

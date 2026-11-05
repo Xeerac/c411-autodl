@@ -1,5 +1,14 @@
 # Historique des versions
 
+## v2.0.1 — 2026-11-05
+
+Corrections d'affichage du tableau de bord :
+- la colonne « Torrent » des derniers ajouts n'est plus écrasée (largeurs de colonnes fixes) ;
+- le nom et la version en haut à gauche ne sont plus soulignés comme des liens ;
+- l'étiquette et le titre du bandeau d'état ne se répètent plus (« Actif » / « Surveillance en cours ») ;
+- le rendement n'est affiché qu'une fois que le torrent a commencé à envoyer ;
+- les tailles au-delà de 1 To s'affichent en To (espace disque de la seedbox).
+
 ## v2.0.0 — 2026-11-05
 
 **L'interface web** (`--interface`, lancée par défaut avec Docker)

@@ -7,15 +7,16 @@
   if (!hero) return;
   const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg$/, "icons.svg") || "/static/icons.svg";
 
+  // état -> [étiquette courte, titre, explication]
   const STATES = {
-    demarrage:   ["Démarrage", "Premier passage en préparation."],
-    actif:       ["Actif", "Le programme surveille c411 et ajoute ce qui correspond à tes critères."],
-    passage:     ["Passage en cours", "Recherche sur c411 et ajout dans qBittorrent…"],
-    tache:       ["Tâche en cours", "Une action lancée depuis l'interface est en cours."],
-    pause:       ["En pause", "Mis en pause depuis l'interface. Rien n'est ajouté jusqu'à la reprise."],
-    pause_ratio: ["En pause : ratio", "Ton ratio est sous le minimum. Reprise automatique dès qu'il remonte."],
-    freeleech:   ["Freeleech actif", "Mode élargi : ce que tu télécharges ne compte pas dans ton ratio."],
-    panne:       ["En panne", "Plusieurs passages ont échoué d'affilée. Le programme continue de réessayer."],
+    demarrage:   ["Démarrage", "Premier passage en préparation", "Le programme lit c411 et ta seedbox."],
+    actif:       ["Actif", "Surveillance en cours", "Le programme surveille c411 et ajoute ce qui correspond à tes critères."],
+    passage:     ["Passage", "Passage en cours", "Recherche sur c411 et ajout dans qBittorrent…"],
+    tache:       ["Tâche", "Tâche en cours", "Une action lancée depuis l'interface est en cours."],
+    pause:       ["En pause", "Ajouts en pause", "Mis en pause depuis l'interface. Rien n'est ajouté jusqu'à la reprise."],
+    pause_ratio: ["Pause ratio", "En attente du ratio", "Ton ratio est sous le minimum. Reprise automatique dès qu'il remonte."],
+    freeleech:   ["Freeleech", "Freeleech actif, mode élargi", "Ce que tu télécharges ne compte pas dans ton ratio : la recherche s'élargit."],
+    panne:       ["En panne", "Plusieurs passages en échec", "Le programme continue de réessayer et te préviendra quand tout repartira."],
   };
   const SERVICE_ICONS = { qbittorrent: "serveur", crossseed: "lien", prowlarr: "radar" };
 
@@ -57,9 +58,9 @@
   let last = null;
   function renderState(e) {
     last = e;
-    const [title, detail] = STATES[e.state] || [e.state, ""];
+    const [label, title, detail] = STATES[e.state] || [e.state, e.state, ""];
     hero.dataset.state = e.state;
-    $("state-pill").textContent = title;
+    $("state-pill").textContent = label;
     $("state-title").textContent = e.state === "tache" && e.task ? e.task.nom : title;
     $("state-detail").textContent = e.read_only ? `${detail} Lecture seule : rien n'est ajouté ni supprimé.` : detail;
 
@@ -144,7 +145,7 @@
       el("td", { class: "num", text: r.taille }),
       el("td", { class: "num" }, [
         document.createTextNode(r.envoye),
-        r.rendement != null ? el("span", { class: "yield" + (r.rendement >= 1 ? " is-good" : ""), text: ` ×${r.rendement}` }) : null,
+        r.rendement ? el("span", { class: "yield" + (r.rendement >= 1 ? " is-good" : ""), text: ` ×${r.rendement}` }) : null,
       ]),
       el("td", { class: "cell-state small", text: r.etat }),
     ])));

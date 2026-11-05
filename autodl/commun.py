@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 
 # Dossier du programme (au-dessus du paquet autodl/) : on y trouve .env et donnees/
@@ -113,6 +113,8 @@ def _save_json(path: Path, data) -> None:
 
 
 def _human(n: int) -> str:
+    if n >= 1024**4:
+        return f"{n / 1024**4:.2f} To"
     if n >= 1024**3:
         return f"{n / 1024**3:.2f} Go"
     return f"{n / 1024**2:.1f} Mo"
