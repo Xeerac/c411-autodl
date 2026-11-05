@@ -1,13 +1,20 @@
 {# Un champ de configuration, généré à partir du schéma. Variable : f #}
+{% from "_icones.html" import icon with context %}
 <div class="field {{ 'has-error' if f.error else '' }} kind-{{ f.kind }}">
   {% if f.kind == 'bool' %}
-    <label class="switch">
-      <input type="checkbox" name="{{ f.env }}" {% if f.checked %}checked{% endif %}>
-      <span class="switch-track" aria-hidden="true"></span>
-      <span class="switch-label">{{ f.label }}</span>
-    </label>
+    <div class="field-top">
+      <label class="switch">
+        <input type="checkbox" name="{{ f.env }}" {% if f.checked %}checked{% endif %}>
+        <span class="switch-track" aria-hidden="true"></span>
+        <span class="switch-label">{{ f.label }}</span>
+      </label>
+      <code class="env-name">{{ f.env }}</code>
+    </div>
   {% else %}
-    <label for="f-{{ f.env }}"><span>{{ f.label }}{% if f.required %} <em class="req" title="obligatoire">*</em>{% endif %}</span></label>
+    <div class="field-top">
+      <label class="field-label" for="f-{{ f.env }}">{{ f.label }}{% if f.required %}<em class="req" title="obligatoire">*</em>{% endif %}</label>
+      <code class="env-name">{{ f.env }}</code>
+    </div>
     {% if f.kind == 'choice' %}
       <select id="f-{{ f.env }}" name="{{ f.env }}">
         {% for c in f.choices %}<option value="{{ c }}" {% if (f.value or f.placeholder) == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
@@ -17,7 +24,7 @@
         <input id="f-{{ f.env }}" name="{{ f.env }}" type="password" autocomplete="new-password" spellcheck="false"
                placeholder="{{ 'Enregistrée · laisse vide pour la garder' if f.stored else 'Non renseignée' }}">
         {% if f.stored %}
-          <span class="badge badge-ok">enregistrée</span>
+          <span class="badge badge-ok">{{ icon("ok") }}enregistrée</span>
           <label class="erase"><input type="checkbox" name="{{ f.env }}__effacer"> Effacer</label>
         {% endif %}
       </div>
@@ -28,7 +35,6 @@
              spellcheck="false">
     {% endif %}
   {% endif %}
-  {% if f.error %}<small class="field-error">{{ f.error }}</small>
+  {% if f.error %}<small class="field-error" role="alert">{{ f.error }}</small>
   {% elif f.help %}<small>{{ f.help }}</small>{% endif %}
-  <code class="env-name">{{ f.env }}</code>
 </div>

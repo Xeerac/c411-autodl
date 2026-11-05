@@ -2,11 +2,11 @@
 {% block title %}Journal · c411-autodl{% endblock %}
 {% block nav_journal %}active{% endblock %}
 {% block content %}
-<section class="card journal-card">
-  <header class="card-head journal-head">
+<section class="panel journal-panel">
+  <header class="journal-head">
     <div>
       <h1>Journal</h1>
-      <p class="muted small">En direct · les clés et mots de passe sont masqués automatiquement.</p>
+      <p class="muted small">En direct. Les clés et mots de passe sont masqués automatiquement.</p>
     </div>
     <div class="journal-tools">
       <div class="segmented" role="group" aria-label="Filtrer">
@@ -21,8 +21,9 @@
       <label class="switch small"><input type="checkbox" id="journal-follow" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Suivre</span></label>
     </div>
   </header>
-  <div class="journal" id="journal" role="log" aria-live="polite"></div>
-  <p class="muted small journal-foot" id="journal-count"></p>
+  <div class="journal" id="journal" role="log" aria-live="polite" tabindex="0"></div>
+  <p class="journal-empty" id="journal-empty" hidden>Aucun message ne correspond à ce filtre.</p>
+  <p class="journal-foot" id="journal-count"></p>
 </section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', path='journal.js') }}" defer></script>{% endblock %}

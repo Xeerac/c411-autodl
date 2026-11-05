@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icones.html" import icon with context %}
 {% block body_class %}auth{% endblock %}
 {% block body %}
 <main class="auth-shell">
@@ -9,9 +10,9 @@
       <div class="brand-sub">version {{ version }}</div>
     </div>
   </div>
-  <section class="card auth-card">
+  <section class="panel auth-card">
     {% block card %}{% endblock %}
   </section>
-  <p class="auth-foot">Interface accessible uniquement depuis ta machine (tunnel SSH).</p>
+  <p class="auth-foot">{{ icon("verrou") }}Accessible uniquement depuis ta machine, par le tunnel SSH.</p>
 </main>
 {% endblock %}

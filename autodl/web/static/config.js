@@ -12,14 +12,26 @@
     return values;
   };
 
+  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg$/, "icons.svg") || "/static/icons.svg";
+  const icon = (name) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", `${ICONS}#${name}`);
+    svg.append(use);
+    return svg;
+  };
+
   function show(label, result) {
     const box = document.createElement("div");
     box.className = "test-result " + (result.ok ? "is-ok" : "is-ko");
+    box.setAttribute("role", "status");
     const title = document.createElement("strong");
-    title.textContent = (result.ok ? "✓ " : "✗ ") + label;
+    title.textContent = label;
     const msg = document.createElement("span");
     msg.textContent = result.message || result.erreur || "Réponse inattendue.";
-    box.append(title, msg);
+    box.append(icon(result.ok ? "ok" : "erreur"), title, msg);
     results.prepend(box);
     while (results.children.length > 4) results.lastChild.remove();
   }
@@ -28,8 +40,7 @@
     btn.addEventListener("click", async () => {
       const label = btn.textContent.trim();
       btn.disabled = true;
-      btn.dataset.label = label;
-      btn.textContent = "Test en cours…";
+      btn.classList.add("is-busy");
       try {
         const r = await fetch(`/api/tester/${btn.dataset.test}`, {
           method: "POST", credentials: "same-origin",
@@ -42,7 +53,7 @@
         show(label, { ok: false, message: "L'interface ne répond pas." });
       } finally {
         btn.disabled = false;
-        btn.textContent = btn.dataset.label;
+        btn.classList.remove("is-busy");
       }
     });
   });

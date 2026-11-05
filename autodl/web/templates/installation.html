@@ -2,7 +2,7 @@
 {% block title %}Installation · c411-autodl{% endblock %}
 {% block card %}
 <h1>Bienvenue</h1>
-<p class="muted">Crée ton compte administrateur. C'est la seule fois que cette page s'affiche.</p>
+<p class="muted">Crée ton compte administrateur. Cette page ne s'affiche qu'une fois.</p>
 
 {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
 
@@ -18,24 +18,24 @@
 
 <form method="post" action="/installation" class="form" autocomplete="off">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <label class="field">
-    <span>Code d'installation</span>
-    <input name="code" required placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" spellcheck="false">
-    <small>Affiché dans le journal du programme au démarrage (« code d'installation »).</small>
-  </label>
-  <label class="field">
-    <span>Nom d'utilisateur</span>
-    <input name="utilisateur" required value="{{ utilisateur or '' }}" autocomplete="username">
-  </label>
-  <label class="field">
-    <span>Mot de passe</span>
-    <input name="mot_de_passe" type="password" required minlength="10" autocomplete="new-password">
+  <div class="field">
+    <label class="field-label" for="f-code">Code d'installation</label>
+    <input id="f-code" class="code-input" name="code" required placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" spellcheck="false" autofocus>
+    <small>Affiché dans le journal du programme au démarrage, et enregistré dans <code>donnees/code-installation.txt</code>.</small>
+  </div>
+  <div class="field">
+    <label class="field-label" for="f-user">Nom d'utilisateur</label>
+    <input id="f-user" name="utilisateur" required value="{{ utilisateur or '' }}" autocomplete="username">
+  </div>
+  <div class="field">
+    <label class="field-label" for="f-pass">Mot de passe</label>
+    <input id="f-pass" name="mot_de_passe" type="password" required minlength="10" autocomplete="new-password">
     <small>10 caractères minimum.</small>
-  </label>
-  <label class="field">
-    <span>Confirmation</span>
-    <input name="confirmation" type="password" required minlength="10" autocomplete="new-password">
-  </label>
+  </div>
+  <div class="field">
+    <label class="field-label" for="f-pass2">Confirmation</label>
+    <input id="f-pass2" name="confirmation" type="password" required minlength="10" autocomplete="new-password">
+  </div>
   <button class="btn btn-primary btn-block" type="submit">Créer mon compte</button>
 </form>
 {% endblock %}

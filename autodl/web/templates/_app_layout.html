@@ -1,27 +1,28 @@
 {% extends "base.html" %}
+{% from "_icones.html" import icon with context %}
 {% block body %}
 <header class="topbar">
-  <div class="brand">
+  <a class="brand" href="/" aria-label="c411-autodl, tableau de bord">
     <img src="{{ url_for('static', path='logo.svg') }}" alt="" width="28" height="28">
     <span class="brand-name">c411-autodl</span>
     <span class="tag">v{{ version }}</span>
-    {% if etat and etat.read_only %}<span class="tag tag-warn" title="Rien n'est ajouté, supprimé ni notifié">Lecture seule</span>{% endif %}
-  </div>
+    {% if etat and etat.read_only %}<span class="tag tag-warn" title="Rien n'est ajouté, supprimé ni notifié">{{ icon("verrou") }}Lecture seule</span>{% endif %}
+  </a>
   <nav class="nav" aria-label="Navigation principale">
-    <a href="/" class="{% block nav_accueil %}{% endblock %}">Tableau de bord</a>
-    <a href="/journal" class="{% block nav_journal %}{% endblock %}">Journal</a>
-    <a href="/configuration" class="{% block nav_config %}{% endblock %}">Configuration</a>
+    <a href="/" class="{% block nav_accueil %}{% endblock %}">{{ icon("tableau") }}<span>Tableau de bord</span></a>
+    <a href="/journal" class="{% block nav_journal %}{% endblock %}">{{ icon("journal") }}<span>Journal</span></a>
+    <a href="/configuration" class="{% block nav_config %}{% endblock %}">{{ icon("reglages") }}<span>Configuration</span></a>
   </nav>
   <form method="post" action="/deconnexion" class="session">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <span class="muted user">{{ session.user }}</span>
-    <button class="btn btn-ghost" type="submit">Déconnexion</button>
+    <span class="user">{{ session.user }}</span>
+    <button class="btn btn-ghost btn-sm" type="submit" title="Déconnexion">{{ icon("sortie") }}<span class="sr-label">Déconnexion</span></button>
   </form>
 </header>
 <main class="page">
   {% if config_errors %}
-  <div class="alert alert-error">
-    <strong>Configuration incomplète : le moteur est arrêté.</strong>
+  <div class="alert alert-error" role="alert">
+    <span class="alert-head">{{ icon("alerte") }}Configuration incomplète : le moteur est arrêté.</span>
     <ul>{% for e in config_errors %}<li>{{ e }}</li>{% endfor %}</ul>
     <a href="/configuration">Compléter la configuration</a>
   </div>

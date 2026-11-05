@@ -5,6 +5,7 @@
   const follow = document.getElementById("journal-follow");
   const search = document.getElementById("journal-search");
   const count = document.getElementById("journal-count");
+  const emptyNote = document.getElementById("journal-empty");
   const MAX = 1500;
   let lastId = 0;
   let filter = "";
@@ -22,7 +23,8 @@
   function apply() {
     let shown = 0;
     for (const row of box.children) { const ok = matches(row); row.hidden = !ok; if (ok) shown++; }
-    count.textContent = `${shown} message(s) affiché(s) sur ${box.children.length}`;
+    count.textContent = box.children.length ? `${shown} message(s) affiché(s) sur ${box.children.length}` : "";
+    emptyNote.hidden = shown > 0 || !box.children.length;
   }
 
   function add(m) {

@@ -57,7 +57,7 @@ def test_profil(cfg: dict) -> dict:
         return ko(str(e))
     except Exception as e:
         return _http_problem(e, "Profil c411")
-    state = "" if allowed else " ⚠️ c411 bloque actuellement tes téléchargements."
+    state = "" if allowed else " Attention : c411 bloque actuellement tes téléchargements."
     return ok(f"Clé Profil valide : ratio {ratio:.2f} ({_human(up)} envoyés, {_human(down)} reçus).{state}")
 
 

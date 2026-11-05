@@ -100,9 +100,10 @@ class Dashboard:
             status["detail"] = f"injoignable ({str(e)[:120]})"
             return status
         failing = {p.get("indexerId") for p in problems if p.get("disabledTill")}
-        names = [("⚠️ " if i.get("id") in failing else "") + i.get("name", "?") for i in indexers if i.get("enable", True)]
+        names = [i.get("name", "?") + (" (en erreur)" if i.get("id") in failing else "")
+                 for i in indexers if i.get("enable", True)]
         status.update(ok=not failing, detail=f"{len(names)} indexeur(s) : {', '.join(names) or 'aucun'}"
-                      + (" · certains sont en erreur" if failing else ""))
+                      )
         return status
 
 

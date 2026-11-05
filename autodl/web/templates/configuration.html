@@ -1,4 +1,5 @@
 {% extends "_app_layout.html" %}
+{% from "_icones.html" import icon with context %}
 {% block title %}Configuration · c411-autodl{% endblock %}
 {% block nav_config %}active{% endblock %}
 {% block content %}
@@ -10,7 +11,7 @@
     <p class="config-source muted">Enregistré dans <code>donnees/{{ source }}</code></p>
   </aside>
 
-  <section class="card config-panel">
+  <section class="panel config-panel">
     <header class="config-head">
       <div>
         <h1>{{ groups[groupe][0] }}</h1>
@@ -18,9 +19,9 @@
       </div>
     </header>
 
-    {% if saved %}<div class="alert alert-ok" role="status">Enregistré. Pris en compte au prochain passage, sans redémarrage.</div>{% endif %}
+    {% if saved %}<div class="alert alert-ok" role="status"><span class="alert-head">{{ icon("ok") }}Enregistré. Pris en compte au prochain passage, sans redémarrage.</span></div>{% endif %}
     {% if errors %}
-      <div class="alert alert-error" role="alert"><strong>Rien n'a été enregistré :</strong>
+      <div class="alert alert-error" role="alert"><span class="alert-head">{{ icon("alerte") }}Rien n'a été enregistré</span>
         <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
     {% endif %}
 
