@@ -23,14 +23,14 @@
       <span class="kpi-sub" id="kpi-ratio-sub">minimum {{ '%.2f'|format(etat.min_ratio) }}</span>
     </article>
     <article class="card kpi">
-      <span class="kpi-label">Ajoutés au dernier passage</span>
-      <span class="kpi-value" id="kpi-last-added">–</span>
-      <span class="kpi-sub" id="kpi-total-added"></span>
+      <span class="kpi-label">Envoyé par tes torrents</span>
+      <span class="kpi-value" id="kpi-uploaded">–</span>
+      <span class="kpi-sub" id="kpi-uploaded-sub"></span>
     </article>
     <article class="card kpi">
       <span class="kpi-label">Dernier passage</span>
       <span class="kpi-value kpi-small" id="kpi-last-pass">–</span>
-      <span class="kpi-sub" id="kpi-duration"></span>
+      <span class="kpi-sub" id="kpi-last-added"></span>
     </article>
     <article class="card kpi">
       <span class="kpi-label">Prochain passage</span>
@@ -40,8 +40,47 @@
   </section>
 
   <div class="alert alert-error" id="last-error" hidden></div>
-  {% endif %}
 
-  <p class="muted footnote">Journal en direct et statistiques : prochaines étapes.</p>
+  <section class="services" id="services" aria-label="État des services"></section>
+
+  <section class="grid-2">
+    <article class="card">
+      <header class="card-head">
+        <h2>Derniers ajouts</h2>
+        <span class="muted small" id="tableau-maj"></span>
+      </header>
+      <div class="table-wrap">
+        <table class="table" id="ajouts">
+          <thead><tr><th>Torrent</th><th>Type</th><th class="num">Taille</th><th class="num">Envoyé</th><th>État</th></tr></thead>
+          <tbody><tr><td colspan="5" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+    </article>
+
+    <div class="stack">
+      <article class="card">
+        <header class="card-head"><h2>Rendement par type</h2></header>
+        <p class="muted small">Envoyé ÷ taille, depuis l'ajout. ×2 : chaque torrent a été envoyé deux fois.</p>
+        <div class="bars" id="types"><p class="muted">Chargement…</p></div>
+      </article>
+
+      <article class="card">
+        <header class="card-head"><h2>Actions</h2></header>
+        <p class="muted small">Les aperçus ne modifient rien : ils montrent dans le journal ce qui serait fait.</p>
+        <div class="actions-grid">
+          <button class="btn" data-action="essai">Essai à blanc</button>
+          <button class="btn" data-action="bilan">Bilan maintenant</button>
+          <button class="btn" data-action="nettoyage_apercu">Aperçu du nettoyage</button>
+          <button class="btn" data-action="rangement_apercu">Aperçu du rangement</button>
+        </div>
+        <div class="task" id="task" hidden>
+          <span class="task-name" id="task-name"></span>
+          <span class="task-result" id="task-result"></span>
+          <a href="/journal" class="small">Voir le journal</a>
+        </div>
+      </article>
+    </div>
+  </section>
+  {% endif %}
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', path='app.js') }}" defer></script>{% endblock %}

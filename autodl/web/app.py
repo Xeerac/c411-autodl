@@ -15,7 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ..commun import __version__, log
-from ..config import GROUPS
+from .. import journal
+from ..config import GROUPS, SETTINGS
+from ..engine import TASKS
+from ..tableau import Dashboard
 from ..verifications import SERVICES
 from . import formulaire
 from .auth import Auth, password_problem
@@ -43,6 +46,8 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.globals.update(version=__version__)
     state = {"config_errors": config_errors or [], "engine": engine}
+    dashboard = Dashboard()
+    journal.install(_secrets_of(store))
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -170,7 +175,7 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
             return JSONResponse({"erreur": "jeton invalide"}, status_code=403)
         if state["engine"] is None:
             return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
-        if action not in ("passage", "pause", "reprise"):
+        if action not in ("passage", "pause", "reprise", *TASKS):
             return JSONResponse({"erreur": "action inconnue"}, status_code=404)
         state["engine"].submit(action)
         return {"ok": True, "action": action}
@@ -219,6 +224,8 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
                 source="config.json" if store.exists() else ".env"), status_code=422)
         if changed:
             log.info("Configuration modifiée depuis l'interface (%s) : %s", session["user"], formulaire.describe(changed))
+            journal.BUFFER.set_secrets(_secrets_of(store))  # les nouveaux secrets sont masqués aussi
+            dashboard.invalidate()
         state["config_errors"] = remaining
         if cfg is not None and (changed or state["engine"] is None):
             if state["engine"] is not None:
@@ -250,9 +257,39 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
         log.info("Interface : test %s : %s", service, "réussi" if result["ok"] else "échec")
         return result
 
+    # ------------------------------------------------------------------ tableau de bord et journal
+
+    @app.get("/api/tableau")
+    def api_tableau(request: Request):
+        if not current(request):
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        eng = state["engine"]
+        if eng is None:
+            return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
+        return dashboard.data(eng.cfg, eng.ctx["state"])
+
+    @app.get("/journal", response_class=HTMLResponse)
+    def journal_page(request: Request):
+        session = current(request)
+        if not session:
+            return redirect("/connexion")
+        return templates.TemplateResponse(request, "journal.html", page_context(request, session))
+
+    @app.get("/api/journal")
+    def api_journal(request: Request, depuis: int = 0):
+        if not current(request):
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        return {"messages": journal.BUFFER.since(max(depuis, 0))}
+
     @app.get("/sante")
     def sante():
         """Pour la supervision (Docker) : ne révèle rien d'autre que « ok »."""
         return {"ok": True}
 
     return app
+
+
+def _secrets_of(store) -> list[str]:
+    """Valeurs secrètes de la configuration enregistrée, à masquer dans le journal."""
+    values = store.values()
+    return [values.get(x.env, "") for x in SETTINGS if x.secret]

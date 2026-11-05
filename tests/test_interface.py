@@ -23,6 +23,14 @@ except ImportError:  # dépendances de l'interface absentes
 from autodl import engine as engine_mod  # noqa: E402
 from autodl.config import build_cfg  # noqa: E402
 
+def enable_logging(test: unittest.TestCase) -> None:
+    """Les autres tests coupent les journaux (logging.disable) : on les rallume le temps d'un test."""
+    import logging
+    previous = logging.root.manager.disable
+    logging.disable(logging.NOTSET)
+    test.addCleanup(logging.disable, previous)
+
+
 BASE_ENV = {"C411_API_KEY": "k", "QBIT_URL": "http://q", "QBIT_USER": "u", "QBIT_PASS": "p", "MIN_RATIO": "0"}
 
 
@@ -423,6 +431,160 @@ class TestRechargement(unittest.TestCase):
             TestEngine._wait(lambda: e.cfg["min_seeders"] == 7)
             self.assertEqual(run.call_count, 1)  # pas de passage en plus : l'heure prévue est gardée
             e.stop(5)
+
+
+# --------------------------------------------------------------------------- étape 4 : tableau, tâches, journal
+
+class TestJournal(unittest.TestCase):
+    def setUp(self):
+        import logging
+        from autodl.journal import LogBuffer
+        enable_logging(self)
+        self.buf = LogBuffer(capacity=50)
+        self.log = logging.getLogger("test-journal")
+        self.log.setLevel(logging.INFO)
+        self.log.addHandler(self.buf)
+        self.addCleanup(self.log.removeHandler, self.buf)
+
+    def test_secrets_masques(self):
+        self.buf.set_secrets(["cle-tres-secrete", "mdp-qbit-123", ""])
+        self.log.error("Erreur avec cle-tres-secrete et mdp-qbit-123 dans https://x/api?t=get&apikey=abcdef123&id=1")
+        msg = self.buf.since(0)[-1]["message"]
+        for secret in ("cle-tres-secrete", "mdp-qbit-123", "abcdef123"):
+            self.assertNotIn(secret, msg)
+        self.assertIn("***", msg)
+
+    def test_suivi_par_numero_et_categories(self):
+        self.log.info("+ Livre.FR.[EPUB]-X (2 Mo)")
+        self.log.warning("Freeleech actif sur c411")
+        first = self.buf.since(0)
+        self.assertEqual([m["categorie"] for m in first], ["ajout", "freeleech"])
+        self.log.info("autre")
+        self.assertEqual([m["message"] for m in self.buf.since(first[-1]["id"])], ["autre"])
+
+    def test_capacite_limitee(self):
+        for i in range(80):
+            self.log.info("message %d", i)
+        self.assertEqual(len(self.buf.since(0)), 50)
+
+
+class TestTableau(unittest.TestCase):
+    def setUp(self):
+        from autodl.stockage import State
+        self.state = State(Path(tempfile.mkdtemp()) / "s.json")
+        self.state.add("a", "BD.T01.[CBZ]-X", "bd", 100 * 1024**2)
+        self.state.add("b", "Livre.[EPUB]-X", "ebook", 1024**2)
+
+    def test_rendement_par_type(self):
+        from autodl.tableau import type_stats
+        torrents = [{"hash": "a", "name": "BD", "size": 100, "uploaded": 500},
+                    {"hash": "b", "name": "Livre", "size": 100, "uploaded": 100}]
+        rows = type_stats(torrents, self.state)
+        self.assertEqual([(r["type"], r["rendement"], r["barre"]) for r in rows], [("bd", 5.0, 100), ("ebook", 1.0, 20)])
+
+    def test_derniers_ajouts(self):
+        from autodl.tableau import recent_additions
+        rows = recent_additions(self.state, {"a": {"size": 100 * 1024**2, "uploaded": 250 * 1024**2, "state": "stalledUP"}})
+        by_title = {r["titre"]: r for r in rows}
+        self.assertEqual(by_title["BD.T01.[CBZ]-X"]["rendement"], 2.5)
+        self.assertEqual(by_title["BD.T01.[CBZ]-X"]["etat"], "en seed")
+        self.assertEqual(by_title["Livre.[EPUB]-X"]["etat"], "absent de qBittorrent")
+
+    def test_services_affiches_seulement_si_configures(self):
+        from autodl.tableau import Dashboard
+        d = Dashboard()
+        with mock.patch.object(Dashboard, "_qbittorrent", return_value=([], {"id": "qbittorrent", "ok": True})):
+            ids = [s["id"] for s in d.data(cfg(), self.state)["services"]]
+            self.assertEqual(ids, ["qbittorrent"])  # ni cross-seed ni Prowlarr configurés
+            d.invalidate()
+            with mock.patch.object(Dashboard, "_crossseed", return_value={"id": "crossseed"}), \
+                 mock.patch.object(Dashboard, "_prowlarr", return_value={"id": "prowlarr"}):
+                c = cfg(CROSS_SEED_URL="http://cs", CROSS_SEED_API_KEY="k", PROWLARR_URL="http://p")
+                ids = [s["id"] for s in d.data(c, self.state)["services"]]
+        self.assertEqual(ids, ["qbittorrent", "crossseed", "prowlarr"])
+
+
+class TestTaches(unittest.TestCase):
+    def make(self, read_only=False):
+        ctx = {"tracking": types.SimpleNamespace(data={}, save=lambda: None)}
+        return engine_mod.Engine(cfg(), interval=300, read_only=read_only, ctx=ctx)
+
+    def test_les_apercus_sont_toujours_a_blanc(self):
+        """Même hors lecture seule, un aperçu ne peut rien modifier."""
+        e = self.make(read_only=False)
+        seen = []
+        record = lambda a, *rest, **kw: seen.append(a.dry_run) or ({} if kw.get("summary") else 0)
+        with mock.patch.multiple(engine_mod, run_once=mock.Mock(side_effect=lambda a, c, x: seen.append(a.dry_run) or 3),
+                                 cleanup=mock.Mock(side_effect=lambda a, c, x: seen.append(a.dry_run) or 0),
+                                 recategorize=mock.Mock(side_effect=lambda a, c, x: seen.append(a.dry_run) or {"c411-bd": 2})):
+            r1 = e.run_task("essai")
+            r2 = e.run_task("nettoyage_apercu")
+            r3 = e.run_task("rangement_apercu")
+        self.assertEqual(seen, [True, True, True])
+        self.assertFalse(e.args.dry_run)  # le moteur lui-même n'est pas modifié
+        self.assertIn("3 torrent(s) seraient ajoutés", r1["resultat"])
+        self.assertIn("rien à nettoyer", r2["resultat"])
+        self.assertIn("2 vers c411-bd", r3["resultat"])
+        self.assertEqual(e.snapshot()["task"]["id"], "rangement_apercu")
+
+    def test_tache_en_echec(self):
+        e = self.make()
+        with mock.patch.object(engine_mod, "run_once", side_effect=RuntimeError("c411 injoignable")):
+            r = e.run_task("essai")
+        self.assertFalse(r["ok"])
+        self.assertIn("c411 injoignable", r["resultat"])
+
+    def test_tache_en_tache_de_fond(self):
+        e = self.make()
+        with mock.patch.multiple(engine_mod, run_once=mock.Mock(return_value=0), maybe_cleanup=mock.Mock(),
+                                 maybe_crossseed=mock.Mock(), maybe_report=mock.Mock()):
+            e.start()
+            TestEngine._wait(lambda: e.snapshot()["last_pass_at"])
+            e.submit("bilan")
+            TestEngine._wait(lambda: (e.snapshot()["task"] or {}).get("fin"))
+            e.stop(5)
+        self.assertTrue(e.snapshot()["task"]["ok"])
+
+
+@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
+class TestPagesTableau(WebCase):
+    def setUp(self):
+        super().setUp()
+        self.install()
+        self.csrf = re.search(r'name="csrf" content="([^"]+)"', self.client.get("/").text).group(1)
+
+    def test_pages_et_api_protegees(self):
+        self.assertEqual(self.client.get("/journal").status_code, 200)
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get("/journal", follow_redirects=False).headers["location"], "/connexion")
+        self.assertEqual(self.client.get("/api/journal").status_code, 401)
+        self.assertEqual(self.client.get("/api/tableau").status_code, 401)
+
+    def test_journal_sans_secret(self):
+        import logging
+        enable_logging(self)
+        logging.getLogger("c411").error("échec avec cle-secrete-123 et mdp-qbit")
+        messages = self.client.get("/api/journal").json()["messages"]
+        text = repr(messages)
+        self.assertIn("échec avec", text)
+        self.assertNotIn("cle-secrete-123", text)
+        self.assertNotIn("mdp-qbit", text)
+
+    def test_actions_de_taches_acceptees(self):
+        for action in ("essai", "bilan", "nettoyage_apercu", "rangement_apercu"):
+            r = self.client.post(f"/api/action/{action}", headers={"X-CSRF-Token": self.csrf})
+            self.assertEqual(r.json(), {"ok": True, "action": action})
+        self.assertEqual(self.client.post("/api/action/nettoyage", headers={"X-CSRF-Token": self.csrf}).status_code, 404)
+
+    def test_tableau(self):
+        self.engine.cfg = cfg()
+        self.engine.ctx = {"state": types.SimpleNamespace(seen={})}
+        from autodl.tableau import Dashboard
+        with mock.patch.object(Dashboard, "_qbittorrent", return_value=([], {"id": "qbittorrent", "ok": True,
+                                                                             "nom": "qBittorrent", "detail": ""})):
+            data = self.client.get("/api/tableau").json()
+        self.assertEqual([s["id"] for s in data["services"]], ["qbittorrent"])
+        self.assertEqual((data["ajouts"], data["types"]), ([], []))
 
 
 class TestCodeInstallation(unittest.TestCase):

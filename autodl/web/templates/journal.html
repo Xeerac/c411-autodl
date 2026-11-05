@@ -1,0 +1,28 @@
+{% extends "_app_layout.html" %}
+{% block title %}Journal · c411-autodl{% endblock %}
+{% block nav_journal %}active{% endblock %}
+{% block content %}
+<section class="card journal-card">
+  <header class="card-head journal-head">
+    <div>
+      <h1>Journal</h1>
+      <p class="muted small">En direct · les clés et mots de passe sont masqués automatiquement.</p>
+    </div>
+    <div class="journal-tools">
+      <div class="segmented" role="group" aria-label="Filtrer">
+        <button type="button" data-filtre="" class="active">Tout</button>
+        <button type="button" data-filtre="ajout">Ajouts</button>
+        <button type="button" data-filtre="probleme">Problèmes</button>
+        <button type="button" data-filtre="freeleech">Freeleech</button>
+        <button type="button" data-filtre="nettoyage">Nettoyage</button>
+        <button type="button" data-filtre="crossseed">cross-seed</button>
+      </div>
+      <input type="search" id="journal-search" placeholder="Rechercher…" aria-label="Rechercher dans le journal">
+      <label class="switch small"><input type="checkbox" id="journal-follow" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Suivre</span></label>
+    </div>
+  </header>
+  <div class="journal" id="journal" role="log" aria-live="polite"></div>
+  <p class="muted small journal-foot" id="journal-count"></p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='journal.js') }}" defer></script>{% endblock %}

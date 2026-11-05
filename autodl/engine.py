@@ -14,9 +14,16 @@ import types
 
 from .commun import __version__, log
 from .contexte import build_context
-from .moteur import _safe, maybe_cleanup, maybe_crossseed, maybe_report, run_once, watchdog
+from .moteur import _safe, cleanup, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once, watchdog
 
-ACTIONS = ("passage", "pause", "reprise", "recharger", "arret")
+# Tâches ponctuelles lancées depuis l'interface. Les aperçus sont TOUJOURS en essai à blanc.
+TASKS = {
+    "essai": "Essai à blanc",
+    "bilan": "Bilan",
+    "nettoyage_apercu": "Aperçu du nettoyage",
+    "rangement_apercu": "Aperçu du rangement",
+}
+ACTIONS = ("passage", "pause", "reprise", "recharger", "arret", *TASKS)
 # Informations d'état gardées quand la configuration change
 KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "down_since", "categories_ok")
 
@@ -42,6 +49,7 @@ class Engine:
             "version": __version__, "read_only": read_only, "started_at": time.time(), "interval": self.interval,
             "state": "demarrage", "last_pass_at": None, "next_pass_at": None, "last_duration": None,
             "last_added": 0, "total_added": 0, "errors": 0, "last_error": None, "running_pass": False,
+            "task": None,  # {"id", "nom", "debut", "fin", "resultat", "ok"}
         }
 
     # ------------------------------------------------------------------ état
@@ -63,6 +71,8 @@ class Engine:
     def _state_name(self, s: dict) -> str:
         if s["running_pass"]:
             return "passage"
+        if s["task"] and not s["task"].get("fin"):
+            return "tache"
         if self.paused:
             return "pause"
         if s["errors"] >= self.cfg["alert_after"]:
@@ -112,6 +122,38 @@ class Engine:
                   total_added=self.total_added, errors=self.errors,
                   **({"last_error": last_error} if last_error or not self.errors else {}))
         return wait
+
+    # ------------------------------------------------------------------ tâches ponctuelles
+
+    def run_task(self, name: str) -> dict:
+        """Exécute une tâche ponctuelle. Les aperçus sont forcés en essai à blanc."""
+        task = {"id": name, "nom": TASKS[name], "debut": time.time(), "fin": None, "resultat": "", "ok": None}
+        self._set(task=dict(task))
+        log.info("Tâche lancée depuis l'interface : %s", task["nom"])
+        dry = types.SimpleNamespace(**{**vars(self.args), "dry_run": True, "boucle": 0})
+        try:
+            if name == "essai":
+                n = run_once(dry, self.cfg, self.ctx)
+                task["resultat"] = f"{n} torrent(s) seraient ajoutés avec les réglages actuels."
+            elif name == "bilan":
+                maybe_report(self.args, self.cfg, self.ctx, force=True)
+                where = " et envoyé en notification" if self.ctx.get("notifier") else ""
+                task["resultat"] = f"Bilan affiché dans le journal{where}."
+            elif name == "nettoyage_apercu":
+                n = cleanup(dry, self.cfg, self.ctx)
+                task["resultat"] = (f"{n} torrent(s) supprimé(s) de c411 seraient retirés." if n
+                                    else "Aucun torrent supprimé de c411 : rien à nettoyer.")
+            elif name == "rangement_apercu":
+                summary = recategorize(dry, self.cfg, self.ctx)
+                task["resultat"] = (", ".join(f"{n} vers {c}" for c, n in sorted(summary.items()))
+                                    if summary else "Tout est déjà bien rangé.")
+            task["ok"] = True
+        except Exception as e:
+            task.update(ok=False, resultat=f"Échec : {str(e)[:200]}")
+            log.error("Tâche %s interrompue : %s", task["nom"], e)
+        task["fin"] = time.time()
+        self._set(task=dict(task))
+        return task
 
     # ------------------------------------------------------------------ au premier plan (ligne de commande)
 
@@ -190,6 +232,11 @@ class Engine:
             if action == "reprise":
                 self.paused = False
                 log.info("Reprise depuis l'interface")
+            if action in TASKS:
+                self.run_task(action)
+                next_at = self._status.get("next_pass_at")
+                wait = 3600 if self.paused else (max(next_at - time.time(), 0.0) if next_at else 0.0)
+                continue
             if action in ("passage", "reprise") or action is None:
                 if action == "passage":
                     log.info("Passage demandé depuis l'interface")
