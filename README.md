@@ -19,6 +19,8 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Bilan quotidien** (optionnel) : volume téléchargé et envoyé, évolution du ratio, et **ce qui rapporte le plus** par type de contenu.
 - ✅ **Une catégorie qBittorrent par type** (optionnel) : `c411-ebook`, `c411-bd`, `c411-presse`…
 - ✅ **Intégration cross-seed** (optionnel) : prévient cross-seed dès qu'un téléchargement est terminé.
+- ✅ **Mode freeleech** (optionnel) : pendant un freeleech sur ton compte, la recherche s'élargit automatiquement (plus de catégories, plus de torrents, plus gros), puisque télécharger ne coûte rien.
+- ✅ **Alerte en cas de panne** : notification si le programme échoue plusieurs fois d'affilée, puis quand tout repart.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows et service systemd pour Linux, avec redémarrage automatique.
 
@@ -390,7 +392,12 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `4xxx` Logiciels | `c411-logiciel` |
 | `1xxx` Jeux | `c411-jeu` |
 
-Les catégories sont créées automatiquement dans qBittorrent. Les torrents déjà présents restent dans leur catégorie actuelle.
+Les catégories sont créées automatiquement dans qBittorrent.
+
+**Ranger les torrents déjà présents** : `python c411_autodl.py --recategoriser --dry-run` montre ce qui serait rangé, puis `python c411_autodl.py --recategoriser` le fait. Le type exact de chaque torrent est retrouvé sur c411.
+
+- Par défaut, qBittorrent **déplace les fichiers** dans le dossier de la nouvelle catégorie. Les torrents dont les fichiers servent aussi à un autre torrent (cross-seed) sont **laissés en place**, car les déplacer casserait l'autre torrent.
+- Avec `--garder-emplacement`, seule l'étiquette change et **aucun fichier ne bouge**. Les torrents partagés sont alors rangés aussi.
 
 ### Nettoyage des torrents supprimés de c411
 
@@ -409,6 +416,35 @@ Quand un torrent est supprimé de c411 (retiré par son uploader, doublon, etc.)
 - tes torrents ajoutés à la main ne sont jamais touchés, car ils n'ont pas le tag `autodl`.
 
 Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --nettoyage --dry-run`.
+
+### Mode freeleech
+
+Pendant un **freeleech sur ton compte** (événement du site, fenêtre freeleech, freeleech personnel), ce que tu télécharges **ne compte pas** dans ton ratio, mais ce que tu envoies compte. C'est le meilleur moment pour récupérer beaucoup de contenu à seeder. Avec `FREELEECH_MODE=true`, le programme le détecte via ton profil c411 et :
+
+- ajoute les catégories de `FREELEECH_CATEGORIES` à sa recherche, par exemple les films et les séries ;
+- autorise jusqu'à `FREELEECH_MAX_PAR_PASSAGE` torrents par passage, et des torrents jusqu'à `FREELEECH_TAILLE_MAX` ;
+- ne se met **pas** en pause même si ton ratio est sous `MIN_RATIO`, puisque télécharger ne peut plus le faire baisser ;
+- ajoute le tag `freeleech` aux torrents récupérés ;
+- te prévient au **début** et à la **fin** du freeleech, puis revient tout seul aux réglages normaux.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `FREELEECH_MODE` | `false` | `true` active le mode (nécessite `C411_PROFILE_API_KEY`) |
+| `FREELEECH_CATEGORIES` | *(vide)* | Catégories ajoutées pendant le freeleech, par exemple `2030,5000` (films, séries) |
+| `FREELEECH_MAX_PAR_PASSAGE` | `100` | Nombre maximum d'ajouts par passage pendant le freeleech |
+| `FREELEECH_TAILLE_MAX` | *(vide)* | Taille maximum pendant le freeleech, par exemple `30Go` (vide = `TAILLE_MAX`) |
+| `FREELEECH_IGNORER_FORMATS` | `true` | Ignore `FORMATS` pendant le freeleech, sinon `FORMATS=epub,cbz` écarterait films et séries |
+
+Tous tes autres filtres (`MAX_SEEDERS`, `MIN_COMPLETED`, `MIN_FREE_GB`…) restent actifs, et `MIN_FREE_GB` protège toujours l'espace disque de la seedbox.
+
+### Alerte en cas de panne
+
+Si le programme échoue `ALERTE_APRES` passages d'affilée (seedbox injoignable, c411 en panne, clé expirée…), tu reçois une notification avec la dernière erreur. Une autre suit quand tout repart, avec la durée de la panne. Il faut que les notifications Discord ou Telegram soient configurées.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `ALERTE_PANNE` | `true` | `false` désactive l'alerte |
+| `ALERTE_APRES` | `3` | Nombre de passages en échec avant l'alerte (3 = 15 min avec un passage toutes les 5 min) |
 
 ### cross-seed
 
@@ -469,6 +505,8 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `python c411_autodl.py --nettoyage --dry-run` | Affiche les torrents supprimés de c411 qui seraient retirés, sans rien toucher |
 | `python c411_autodl.py --nettoyage` | Lance le nettoyage tout de suite |
 | `python c411_autodl.py --bilan` | Affiche le bilan tout de suite (et l'envoie en notification) |
+| `python c411_autodl.py --recategoriser --dry-run` | Montre comment les torrents existants seraient rangés par type |
+| `python c411_autodl.py --recategoriser` | Range les torrents existants (ajoute `--garder-emplacement` pour ne déplacer aucun fichier) |
 | `python c411_autodl.py --version` | Affiche la version |
 | `python c411_autodl.py -v` | Mode détaillé : affiche chaque torrent ignoré et la raison |
 

@@ -27,7 +27,9 @@ def base_cfg(**over):
                excluded_groups=[], exclude_regex=None, tri="recent", max_per_run=50, min_free_gb=20,
                min_ratio=2.0, profile_key="x", qbit_category="c411-ebook", qbit_tags="c411,autodl",
                qbit_savepath="", qbit_paused=False, cat_par_type=False, cat_prefix="c411",
-               own_tag="autodl", cleanup_action="fichiers", cs_url="", cs_key="", bilan=False, bilan_heure=8)
+               own_tag="autodl", cleanup_action="fichiers", cs_url="", cs_key="", bilan=False, bilan_heure=8,
+               fl_mode=False, fl_cats=[], fl_max_per_run=100, fl_max_size=None, fl_ignore_formats=True,
+               alert=True, alert_after=3)
     cfg.update(over)
     return cfg
 
@@ -159,9 +161,10 @@ class TestTypes(unittest.TestCase):
 
 class FakeC411:
     def __init__(self, items):
-        self.items = items
+        self.items, self.cats = items, []
 
     def search(self, cats, offset, limit, query=""):
+        self.cats.append(cats)
         return self.items if offset == 0 else []
 
     def download(self, link):
@@ -169,8 +172,9 @@ class FakeC411:
 
 
 class FakeProfile:
-    def __init__(self, up, down, allowed=True):
+    def __init__(self, up, down, allowed=True, freeleech=None):
         self.v = (up, down, allowed)
+        self.last_profile = {"freeleech": {"active": bool(freeleech), "sources": freeleech or []}}
 
     def ratio(self):
         up, down, allowed = self.v
@@ -186,7 +190,9 @@ class FakeQbit:
     def hashes(self): return {t["hash"] for t in self.t}
     def free_space(self): return 1000 * GB
     def ensure_category(self, name, path): self.categories.append(name)
-    def add(self, fn, data, category, *a): self.added.append((fn, category))
+    def add(self, fn, data, category, tags="", *a): self.added.append((fn, category)); self.tags = tags
+    def set_category(self, h, cat): self.actions.append(("category", h, cat))
+    def set_auto_management(self, h, enable): self.actions.append(("auto", h, enable))
     def torrents(self, tag=""): return [t for t in self.t if not tag or tag in t.get("tags", "").split(",")]
     def trackers(self, h): return self.tr[h]
     def delete(self, h, delete_files): self.actions.append(("delete", h, delete_files))
@@ -393,6 +399,142 @@ class TestNotifications(unittest.TestCase):
         self.assertIn("ratio ≈ 2.35", telegram)
 
 
+# --------------------------------------------------------------------------- mode freeleech
+
+class TestFreeleech(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def ctx(self, items, profile):
+        return dict(c411=FakeC411(items), profile=profile, qbit=FakeQbit(), notifier=mock.Mock(),
+                    state=m.State(self.tmp / "s.json"), tracking=m.Tracking(self.tmp / "t.json"))
+
+    def test_lecture_du_profil(self):
+        self.assertEqual(m.freeleech_sources({"freeleech": {"active": True, "sources": ["campaign"]}}), ["campaign"])
+        self.assertEqual(m.freeleech_sources({"freeleech": {"active": False}}), [])
+        self.assertEqual(m.freeleech_sources(None), [])
+
+    def test_reglages_elargis(self):
+        cfg = base_cfg(cats="7020,7030", fl_cats=["2030", "7030"], fl_max_size=50 * GB, formats=["epub"])
+        fl = m.freeleech_cfg(cfg)
+        self.assertEqual(fl["cats"], "7020,7030,2030")
+        self.assertEqual((fl["max_per_run"], fl["max_size"], fl["formats"]), (100, 50 * GB, []))
+        self.assertEqual(fl["qbit_tags"], "c411,autodl,freeleech")
+        self.assertEqual(cfg["cats"], "7020,7030")  # la config normale n'est pas modifiée
+
+    def test_pas_de_pause_ni_de_limite_de_ratio_en_freeleech(self):
+        items = [item(title="Film.2160p-X", infohash="f", size=60 * GB, category="2030")]
+        # Ratio 1.90 : en temps normal, pause. En freeleech, on télécharge quand même.
+        ctx = self.ctx(items, FakeProfile(190 * GB, 100 * GB, freeleech=["campaign"]))
+        m.run_once(args(), base_cfg(fl_mode=True, fl_cats=["2030"]), ctx)
+        self.assertEqual([fn for fn, _ in ctx["qbit"].added], ["f.torrent"])
+        self.assertIn("freeleech", ctx["qbit"].tags)
+        self.assertEqual(ctx["c411"].cats[0], "7020,2030")
+
+    def test_mode_desactive(self):
+        ctx = self.ctx([item(infohash="a")], FakeProfile(190 * GB, 100 * GB, freeleech=["campaign"]))
+        m.run_once(args(), base_cfg(fl_mode=False), ctx)
+        self.assertEqual(ctx["qbit"].added, [])  # FREELEECH_MODE=false : pause normale
+
+    def test_notification_au_debut_et_a_la_fin(self):
+        ctx = self.ctx([], FakeProfile(300 * GB, 100 * GB, freeleech=["campaign"]))
+        cfg = base_cfg(fl_mode=True)
+        m.run_once(args(), cfg, ctx)
+        m.run_once(args(), cfg, ctx)  # toujours actif : pas de nouveau message
+        ctx["profile"] = FakeProfile(300 * GB, 100 * GB)
+        m.run_once(args(), cfg, ctx)
+        messages = [c.args[0] for c in ctx["notifier"].send.call_args_list]
+        self.assertEqual(len(messages), 2)
+        self.assertIn("Freeleech actif", messages[0])
+        self.assertIn("Freeleech terminé", messages[1])
+
+
+# --------------------------------------------------------------------------- rangement
+
+class TestRangement(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def run_recat(self, torrents, found, keep=False, dry=False, state_types=None):
+        state = m.State(self.tmp / "s.json")
+        for t in torrents:
+            state.add(t["hash"], t["name"], (state_types or {}).get(t["hash"], ""))
+        c411 = types.SimpleNamespace(search=lambda cats, off, lim, q="": [
+            item(title=q, infohash=h, category=cat) for h, cat in found.items()])
+        qbit = FakeQbit(torrents)
+        summary = m.recategorize(args(dry_run=dry), base_cfg(), {"qbit": qbit, "c411": c411, "state": state},
+                                 keep_location=keep)
+        return summary, qbit.actions, state
+
+    def t(self, h, cat="c411-ebook", path=None, tags="autodl,c411"):
+        d = tor(h, path=path, tags=tags, name=f"Titre-{h}")
+        d["category"] = cat
+        return d
+
+    def test_type_retrouve_via_c411(self):
+        summary, actions, state = self.run_recat([self.t("a"), self.t("b")], {"a": "7030", "b": "7010"})
+        self.assertEqual(summary, {"c411-bd": 1, "c411-presse": 1})
+        self.assertIn(("category", "a", "c411-bd"), actions)
+        self.assertEqual(state.seen["a"]["type"], "bd")  # mémorisé pour le bilan
+
+    def test_deja_bien_range(self):
+        summary, actions, _ = self.run_recat([self.t("a", cat="c411-bd")], {"a": "7030"})
+        self.assertEqual((summary, actions), ({}, []))
+
+    def test_fichiers_partages_laisses_en_place(self):
+        torrents = [self.t("a", path="/d/x"), self.t("cs", path="/d/x", tags="cross-seed")]
+        summary, actions, _ = self.run_recat(torrents, {"a": "7030"})
+        self.assertEqual(actions, [])
+
+    def test_garder_emplacement(self):
+        torrents = [self.t("a", path="/d/x"), self.t("cs", path="/d/x", tags="cross-seed")]
+        _, actions, _ = self.run_recat(torrents, {"a": "7030"}, keep=True)
+        self.assertEqual(actions, [("auto", "a", False), ("category", "a", "c411-bd")])
+
+    def test_dry_run(self):
+        summary, actions, _ = self.run_recat([self.t("a")], {"a": "7030"}, dry=True)
+        self.assertEqual((summary, actions), ({"c411-bd": 1}, []))
+
+    def test_type_deja_connu_pas_de_recherche(self):
+        summary, _, _ = self.run_recat([self.t("a")], {}, state_types={"a": "livre-audio"})
+        self.assertEqual(summary, {"c411-livre-audio": 1})
+
+
+# --------------------------------------------------------------------------- alerte de panne
+
+class TestAlerte(unittest.TestCase):
+    def test_panne_puis_reprise(self):
+        notifier = mock.Mock()
+        ctx, cfg = {"notifier": notifier}, base_cfg(alert_after=3)
+        errors = 0
+        for _ in range(5):
+            errors = m.watchdog(cfg, ctx, errors, RuntimeError("seedbox injoignable"))
+        self.assertEqual(notifier.send.call_count, 1)  # une seule alerte, au 3e échec
+        self.assertIn("en panne", notifier.send.call_args[0][0])
+        self.assertIn("seedbox injoignable", notifier.send.call_args[0][0])
+        errors = m.watchdog(cfg, ctx, errors)
+        self.assertEqual(errors, 0)
+        self.assertIn("fonctionne à nouveau", notifier.send.call_args[0][0])
+
+    def test_echec_isole_sans_alerte(self):
+        notifier = mock.Mock()
+        ctx, cfg = {"notifier": notifier}, base_cfg(alert_after=3)
+        errors = m.watchdog(cfg, ctx, 0, RuntimeError("x"))
+        errors = m.watchdog(cfg, ctx, errors)
+        notifier.send.assert_not_called()
+
+    def test_alerte_desactivee(self):
+        notifier = mock.Mock()
+        errors = 0
+        for _ in range(4):
+            errors = m.watchdog(base_cfg(alert=False), {"notifier": notifier}, errors, RuntimeError("x"))
+        notifier.send.assert_not_called()
+
+    def test_duree(self):
+        self.assertEqual(m._duration(5 * 60), "5 min")
+        self.assertEqual(m._duration(2 * 3600 + 7 * 60), "2 h 07")
+
+
 # --------------------------------------------------------------------------- démarrage
 
 class TestDemarrage(unittest.TestCase):
@@ -422,6 +564,11 @@ class TestDemarrage(unittest.TestCase):
         r = self.run_cli("--dry-run", CROSS_SEED_URL="http://localhost:2468")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("CROSS_SEED_API_KEY", r.stderr)
+
+    def test_freeleech_sans_cle_profil(self):
+        r = self.run_cli("--dry-run", FREELEECH_MODE="true")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("C411_PROFILE_API_KEY", r.stderr)
 
     def test_action_de_nettoyage_invalide(self):
         r = self.run_cli("--dry-run", NETTOYAGE_ACTION="tout")

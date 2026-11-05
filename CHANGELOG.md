@@ -1,5 +1,14 @@
 # Historique des versions
 
+## v1.4.0 — 2026-11-05
+
+**Nouveautés**
+- **Mode freeleech** (`FREELEECH_MODE`, désactivé par défaut) : quand un freeleech est actif sur le compte (détecté via le profil c411), la recherche s'élargit (`FREELEECH_CATEGORIES`, `FREELEECH_MAX_PAR_PASSAGE`, `FREELEECH_TAILLE_MAX`, `FREELEECH_IGNORER_FORMATS`), sans pause liée au ratio ; tag `freeleech` sur les torrents récupérés, notification au début et à la fin.
+- **Ranger les torrents existants** par type : `--recategoriser` (avec `--dry-run` pour l'aperçu). Le type exact est retrouvé via la recherche c411 ; les torrents dont les fichiers sont partagés (cross-seed) ne sont pas déplacés. `--garder-emplacement` change seulement l'étiquette, sans déplacer de fichier.
+- **Alerte en cas de panne** (`ALERTE_PANNE`, `ALERTE_APRES`, activée par défaut si les notifications sont configurées) : notification après plusieurs passages en échec d'affilée, puis à la reprise avec la durée de la panne.
+
+**Tests** : 56 tests (16 de plus).
+
 ## v1.3.0 — 2026-11-05
 
 **Nouveautés** (toutes optionnelles, désactivées par défaut)

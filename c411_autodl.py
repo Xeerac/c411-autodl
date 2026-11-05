@@ -33,7 +33,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "donnees"  # historique des ajouts et journal
@@ -249,10 +249,52 @@ class C411:
             if e.code == 401:
                 raise RuntimeError("clé C411_PROFILE_API_KEY absente ou invalide") from e
             raise
+        self.last_profile = prof  # gardé pour le mode freeleech
         up = int(prof["transfer"]["uploaded"]["total"])
         down = int(prof["transfer"]["downloaded"]["total"])
         allowed = bool(prof.get("download", {}).get("allowed", True))
         return (up / down if down else float("inf")), up, down, allowed
+
+
+def freeleech_cfg(cfg: dict) -> dict:
+    """Réglages élargis pendant un freeleech : plus de catégories, plus gros, plus nombreux."""
+    fl = dict(cfg)
+    cats = [c.strip() for c in cfg["cats"].split(",") if c.strip()]
+    cats += [c for c in cfg["fl_cats"] if c not in cats]
+    fl["cats"] = ",".join(cats)
+    fl["max_per_run"] = cfg["fl_max_per_run"]
+    if cfg["fl_max_size"] is not None:
+        fl["max_size"] = cfg["fl_max_size"]
+    if cfg["fl_ignore_formats"]:
+        fl["formats"] = []  # sinon FORMATS=epub,cbz écarterait tous les films et séries
+    tags = [t.strip() for t in cfg["qbit_tags"].split(",") if t.strip()]
+    fl["qbit_tags"] = ",".join(tags + ([] if "freeleech" in tags else ["freeleech"]))
+    return fl
+
+
+def _freeleech_transition(args, cfg: dict, ctx: dict, sources: list[str]) -> None:
+    """Journalise et notifie le début et la fin d'un freeleech (une seule fois chacun)."""
+    active = bool(sources)
+    if active == ctx.get("freeleech", False):
+        return
+    ctx["freeleech"] = active
+    if active:
+        extra = f", catégories en plus : {','.join(cfg['fl_cats'])}" if cfg["fl_cats"] else ""
+        msg = (f"🎉 Freeleech actif sur c411 ({', '.join(sources)}) : mode élargi "
+               f"(jusqu'à {cfg['fl_max_per_run']} torrents par passage{extra}, pas de pause liée au ratio)")
+    else:
+        msg = "🔚 Freeleech terminé : retour aux réglages normaux"
+    log.info("%s", msg)
+    if ctx.get("notifier") and not args.dry_run:
+        ctx["notifier"].send(msg)
+
+
+def freeleech_sources(profile: dict | None) -> list[str]:
+    """Sources du freeleech actif sur le compte (campaign = événement du site, window, personal), sinon []."""
+    fl = (profile or {}).get("freeleech") or {}
+    if not fl.get("active"):
+        return []
+    return list(fl.get("sources") or ["actif"])
 
 
 def _float(value, default: float) -> float:
@@ -359,6 +401,12 @@ class QBit:
             if e.code != 404:
                 raise
             self._form("torrents/pause", {"hashes": h})  # qBittorrent 4.x
+
+    def set_category(self, h: str, category: str) -> None:
+        self._form("torrents/setCategory", {"hashes": h, "category": category})
+
+    def set_auto_management(self, h: str, enable: bool) -> None:
+        self._form("torrents/setAutoManagement", {"hashes": h, "enable": str(enable).lower()})
 
     def add_tags(self, h: str, tags: str) -> None:
         self._form("torrents/addTags", {"hashes": h, "tags": tags})
@@ -528,13 +576,20 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
 
     # Ratio : contrôlé avant de chercher, pour ne rien demander à c411 si on est sous le seuil
     up = down = 0
-    if cfg["min_ratio"] > 0:
+    freeleech = False
+    if cfg["min_ratio"] > 0 or cfg["fl_mode"]:
         ratio, up, down, allowed = ctx["profile"].ratio()
         ctx["last_ratio"] = ratio
+        sources = freeleech_sources(getattr(ctx["profile"], "last_profile", None)) if cfg["fl_mode"] else []
+        freeleech = bool(sources)
+        _freeleech_transition(args, cfg, ctx, sources)
+        if freeleech:
+            cfg = freeleech_cfg(cfg)  # recherche élargie le temps du freeleech
         blocked = None
         if not allowed:
             blocked = "c411 bloque les téléchargements sur ton compte"
-        elif ratio <= cfg["min_ratio"]:
+        elif cfg["min_ratio"] > 0 and ratio <= cfg["min_ratio"] and not freeleech:
+            # En freeleech, télécharger ne fait pas baisser le ratio : pas de pause
             blocked = f"ratio {ratio:.2f} ≤ {cfg['min_ratio']:.2f}"
         if blocked:
             if ctx.get("blocked") != blocked:  # on ne le répète pas à chaque minute
@@ -580,7 +635,8 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
         if not it["link"]:
             log.warning("Pas de lien de téléchargement : %s", it["title"])
             continue
-        counted = int(it["size"] * it["dl_factor"])  # ce que c411 comptera réellement en reçu
+        # Ce que c411 comptera réellement en reçu (rien pendant un freeleech sur le compte)
+        counted = 0 if freeleech else int(it["size"] * it["dl_factor"])
         if cfg["min_ratio"] > 0 and counted and down + counted_bytes + counted > 0:
             projected = up / (down + counted_bytes + counted)
             if projected <= cfg["min_ratio"]:
@@ -794,6 +850,40 @@ def cleanup(args, cfg: dict, ctx: dict) -> int:
     return done
 
 
+def watchdog(cfg: dict, ctx: dict, errors: int, error: Exception | None = None) -> int:
+    """Suit les échecs d'affilée et prévient en cas de panne puis de reprise. Retourne le nouveau compteur."""
+    if error is None:
+        if errors >= cfg["alert_after"]:
+            down = _duration(time.time() - ctx.get("down_since", time.time()))
+            log.info("Fonctionne à nouveau après %d passages en échec (%s)", errors, down)
+            _alert(cfg, ctx, f"✅ **c411-autodl fonctionne à nouveau**, après {errors} passages en échec ({down}).")
+        return 0
+    errors += 1
+    if errors == 1:
+        ctx["down_since"] = time.time()
+    # On signale la première erreur, puis une sur dix pour ne pas inonder le journal
+    if errors == 1 or errors % 10 == 0:
+        log.error("Passage interrompu (%d erreur(s) d'affilée) : %s", errors, error)
+    if errors == cfg["alert_after"]:
+        _alert(cfg, ctx, f"⚠️ **c411-autodl en panne** : {errors} passages en échec d'affilée.\n"
+                         f"Dernière erreur : {str(error)[:300]}\n"
+                         f"Il continue de réessayer et te préviendra quand tout repartira.")
+    return errors
+
+
+def _alert(cfg: dict, ctx: dict, text: str) -> None:
+    """Alerte de panne / de reprise (si ALERTE_PANNE et des notifications sont configurées)."""
+    if cfg["alert"] and ctx.get("notifier"):
+        ctx["notifier"].send(text)
+
+
+def _duration(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes} min"
+    return f"{minutes // 60} h {minutes % 60:02d}"
+
+
 def _safe(func, *args):
     """Une fonction annexe qui échoue ne doit jamais arrêter le programme."""
     try:
@@ -815,6 +905,78 @@ def maybe_cleanup(args, cfg: dict, ctx: dict, force: bool = False) -> None:
         (log.info if n or not args.boucle else log.debug)("Nettoyage terminé : %d torrent(s) supprimé(s) de c411", n)
     except Exception as e:
         log.error("Nettoyage interrompu : %s", e)
+
+
+# --------------------------------------------------------------------------- rangement des torrents existants
+
+def recategorize(args, cfg: dict, ctx: dict, keep_location: bool = False) -> dict:
+    """Range dans une catégorie par type les torrents déjà présents (commande --recategoriser).
+
+    Le type exact est retrouvé via la recherche Torznab de c411 (l'API ne donne que « Ebook »),
+    sinon deviné d'après le titre. Retourne {catégorie cible: nombre}.
+
+    Par défaut qBittorrent déplace les fichiers dans le dossier de la nouvelle catégorie. Les torrents
+    dont les fichiers servent aussi à un autre torrent (cross-seed) sont laissés tels quels : les
+    déplacer casserait l'autre torrent. Avec keep_location, seule l'étiquette change (aucun fichier
+    ne bouge) et ces torrents-là sont rangés aussi.
+    """
+    qbit, c411, state = ctx["qbit"], ctx["c411"], ctx["state"]
+    qbit.login(quiet=True)
+    everything = qbit.torrents()
+    own = [t for t in everything if cfg["own_tag"] in [x.strip() for x in t.get("tags", "").split(",")]]
+    paths: dict[str, int] = {}
+    for t in everything:
+        paths[t.get("content_path", "")] = paths.get(t.get("content_path", ""), 0) + 1
+    log.info("Rangement de %d torrents (%s)…", len(own),
+             "étiquette seulement, fichiers en place" if keep_location else "les fichiers suivent leur catégorie")
+
+    summary: dict[str, int] = {}
+    known_cats = ctx.setdefault("categories_ok", set())
+    for i, t in enumerate(own, 1):
+        h = t["hash"].lower()
+        entry = state.seen.get(h, {})
+        kind = entry.get("type") or _lookup_type(c411, h, entry.get("title") or t["name"])
+        if kind and not entry.get("type") and h in state.seen:
+            state.seen[h]["type"] = kind  # mémorisé pour le bilan
+        kind = kind or guess_type(t["name"])
+        target = f"{cfg['cat_prefix']}-{kind}"
+        if t.get("category") == target:
+            continue
+        if paths.get(t.get("content_path", ""), 0) > 1 and not keep_location:
+            log.info("  laissé en place (fichiers partagés avec un autre torrent) : %s", t["name"])
+            continue
+        summary[target] = summary.get(target, 0) + 1
+        if args.dry_run:
+            log.info("  [dry-run] %s -> %s", t["name"], target)
+            continue
+        try:
+            if target not in known_cats:
+                qbit.ensure_category(target, cfg["qbit_savepath"])
+                known_cats.add(target)
+            if keep_location:
+                qbit.set_auto_management(h, False)  # sans gestion auto, changer de catégorie ne déplace rien
+            qbit.set_category(h, target)
+            log.info("  (%d/%d) %s -> %s", i, len(own), t["name"], target)
+        except Exception as e:
+            log.error("  échec pour %s : %s", t["name"], e)
+    if not args.dry_run:
+        state.save()
+    verb = "seraient rangés" if args.dry_run else "rangés"
+    log.info("Rangement terminé : %s %s", ", ".join(f"{n} dans {c}" for c, n in sorted(summary.items()))
+             or "rien à ranger", verb if summary else "")
+    return summary
+
+
+def _lookup_type(c411: C411, infohash: str, title: str) -> str:
+    """Type exact d'un torrent : on cherche son titre sur c411 et on lit la catégorie du résultat."""
+    for query in (title, re.sub(r"[.\[\]()_-]+", " ", title).strip()):
+        try:
+            for it in c411.search("", 0, 50, query):
+                if it["infohash"] == infohash:
+                    return content_type(it["category"], it["title"])
+        except Exception as e:
+            log.debug("recherche du type impossible pour %s : %s", title, e)
+    return ""
 
 
 # --------------------------------------------------------------------------- cross-seed
@@ -1020,6 +1182,11 @@ def main() -> None:
                    help="vérifie tout de suite les torrents supprimés de c411, puis quitte (combinable avec --dry-run)")
     p.add_argument("--bilan", action="store_true",
                    help="affiche (et envoie en notification) le bilan tout de suite, puis quitte")
+    p.add_argument("--recategoriser", action="store_true",
+                   help="range les torrents déjà présents dans une catégorie par type, puis quitte "
+                        "(combinable avec --dry-run)")
+    p.add_argument("--garder-emplacement", action="store_true",
+                   help="avec --recategoriser : change seulement l'étiquette, aucun fichier n'est déplacé")
     p.add_argument("--version", action="version", version=f"c411-autodl {__version__}")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args()
@@ -1083,7 +1250,19 @@ def main() -> None:
         # Bilan quotidien
         "bilan": env_bool("BILAN_QUOTIDIEN", False),
         "bilan_heure": env_int("BILAN_HEURE", 8),
+        # Mode freeleech : réglages élargis quand un freeleech est actif sur le compte
+        "fl_mode": env_bool("FREELEECH_MODE", False),
+        "fl_cats": [c.strip() for c in env("FREELEECH_CATEGORIES", "").split(",") if c.strip()],
+        "fl_max_per_run": env_int("FREELEECH_MAX_PAR_PASSAGE", 100),
+        "fl_max_size": parse_size(env("FREELEECH_TAILLE_MAX", "")) if env("FREELEECH_TAILLE_MAX", "").strip() else None,
+        "fl_ignore_formats": env_bool("FREELEECH_IGNORER_FORMATS", True),
+        # Alerte en cas de panne
+        "alert": env_bool("ALERTE_PANNE", True),
+        "alert_after": max(env_int("ALERTE_APRES", 3), 1),
     }
+    if cfg["fl_mode"] and not cfg["profile_key"]:
+        sys.exit("FREELEECH_MODE est activé : ajoute C411_PROFILE_API_KEY dans .env "
+                 "(clé avec le scope « Profil (lecture) ») pour détecter le freeleech")
     if cfg["cs_url"] and not cfg["cs_key"]:
         sys.exit("CROSS_SEED_URL est rempli : ajoute aussi CROSS_SEED_API_KEY (commande : cross-seed api-key)")
     if cfg["cleanup_action"] not in ("fichiers", "torrent", "pause"):
@@ -1119,6 +1298,13 @@ def main() -> None:
     if args.bilan:
         maybe_report(args, cfg, ctx, force=True)
         return
+    if args.recategoriser:
+        try:
+            recategorize(args, cfg, ctx, keep_location=args.garder_emplacement)
+        except Exception as e:
+            log.error("Rangement interrompu : %s", e)
+            sys.exit(1)
+        return
 
     if not args.boucle:
         try:
@@ -1138,7 +1324,10 @@ def main() -> None:
              if cfg["cleanup"] else "")
     extras = [name for name, on in (("catégorie par type", cfg["cat_par_type"]),
                                     ("cross-seed immédiat", cfg["cs_url"]),
-                                    (f"bilan quotidien à {cfg['bilan_heure']} h", cfg["bilan"])) if on]
+                                    (f"bilan quotidien à {cfg['bilan_heure']} h", cfg["bilan"]),
+                                    ("mode freeleech", cfg["fl_mode"]),
+                                    (f"alerte après {cfg['alert_after']} échecs",
+                                     cfg["alert"] and ctx.get("notifier"))) if on]
     if extras:
         log.info("Options actives : %s", ", ".join(extras))
     total_added = errors = 0
@@ -1148,12 +1337,9 @@ def main() -> None:
             start = time.monotonic()
             try:
                 total_added += run_once(args, cfg, ctx)
-                errors = 0
+                errors = watchdog(cfg, ctx, errors)
             except Exception as e:
-                errors += 1
-                # On signale la première erreur, puis une sur dix pour ne pas inonder le journal
-                if errors == 1 or errors % 10 == 0:
-                    log.error("Passage interrompu (%d erreur(s) d'affilée) : %s", errors, e)
+                errors = watchdog(cfg, ctx, errors, e)
             # Indépendants du ratio : tournent même quand les ajouts sont en pause
             maybe_cleanup(args, cfg, ctx)
             _safe(maybe_crossseed, args, cfg, ctx)
