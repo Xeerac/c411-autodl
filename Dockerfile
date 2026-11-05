@@ -15,6 +15,9 @@ RUN apt-get update \
 RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin autodl
 
 WORKDIR /app
+# Dépendances de l'interface web (la ligne de commande n'en a pas besoin)
+COPY requirements-interface.txt ./
+RUN pip install --no-cache-dir -r requirements-interface.txt
 COPY c411_autodl.py ./
 COPY autodl/ ./autodl/
 RUN mkdir -p /app/donnees && chown autodl:autodl /app/donnees

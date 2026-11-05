@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body_class %}auth{% endblock %}
+{% block body %}
+<main class="auth-shell">
+  <div class="auth-brand">
+    <img src="{{ url_for('static', path='logo.svg') }}" alt="" width="40" height="40">
+    <div>
+      <div class="brand-name">c411-autodl</div>
+      <div class="brand-sub">version {{ version }}</div>
+    </div>
+  </div>
+  <section class="card auth-card">
+    {% block card %}{% endblock %}
+  </section>
+  <p class="auth-foot">Interface accessible uniquement depuis ta machine (tunnel SSH).</p>
+</main>
+{% endblock %}

@@ -484,6 +484,8 @@ def maybe_report(args, cfg: dict, ctx: dict, force: bool = False) -> None:
     """Bilan une fois par jour à BILAN_HEURE (ou tout de suite avec --bilan, sans changer le relevé)."""
     if not cfg["bilan"] and not force:
         return
+    if args.dry_run and not force:  # essai à blanc / lecture seule : le relevé quotidien n'est pas touché
+        return
     tracking = ctx["tracking"]
     today = time.strftime("%Y-%m-%d")
     if not force and (time.localtime().tm_hour < cfg["bilan_heure"] or tracking.data.get("bilan_date") == today):

@@ -1,0 +1,7 @@
+# Dépendances de l'interface web (option --interface), déjà incluses dans l'image Docker.
+# La ligne de commande, elle, n'a besoin d'aucune dépendance.
+#   pip install -r requirements-interface.txt
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
+jinja2>=3.1,<4
+python-multipart>=0.0.9

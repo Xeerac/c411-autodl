@@ -14,3 +14,6 @@ __pycache__/
 
 # Réglages Docker propres à la machine (créés par migrer_vers_docker.sh)
 docker-compose.override.yml
+
+# Environnement Python local (dépendances de l interface)
+.venv/

@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Dépendances de l'interface web
+        run: python -m pip install -r requirements-interface.txt httpx
       - name: Vérification de la syntaxe
         run: python -m compileall -q c411_autodl.py autodl
       - name: Tests (aucun accès réseau, tout est simulé)

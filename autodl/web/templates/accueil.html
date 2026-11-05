@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord · c411-autodl{% endblock %}
+{% block body %}
+<header class="topbar">
+  <div class="brand">
+    <img src="{{ url_for('static', path='logo.svg') }}" alt="" width="28" height="28">
+    <span class="brand-name">c411-autodl</span>
+    <span class="tag">v{{ version }}</span>
+    {% if etat and etat.read_only %}<span class="tag tag-warn" title="Rien n'est ajouté, supprimé ni notifié">Lecture seule</span>{% endif %}
+  </div>
+  <form method="post" action="/deconnexion">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span class="muted user">{{ session.user }}</span>
+    <button class="btn btn-ghost" type="submit">Déconnexion</button>
+  </form>
+</header>
+
+<main class="page">
+  {% if config_errors %}
+  <div class="alert alert-error">
+    <strong>Configuration incomplète : le moteur est arrêté.</strong>
+    <ul>{% for e in config_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if etat %}
+  <section class="card hero" id="hero" data-state="{{ etat.state }}">
+    <div class="hero-main">
+      <span class="pill" id="state-pill">…</span>
+      <h1 id="state-title">Chargement…</h1>
+      <p class="muted" id="state-detail"></p>
+    </div>
+    <div class="hero-actions">
+      <button class="btn btn-primary" data-action="passage" id="btn-passage">Passage maintenant</button>
+      <button class="btn" data-action="pause" id="btn-pause">Pause</button>
+      <button class="btn" data-action="reprise" id="btn-reprise" hidden>Reprendre</button>
+    </div>
+  </section>
+
+  <section class="kpis">
+    <article class="card kpi">
+      <span class="kpi-label">Ratio c411</span>
+      <span class="kpi-value" id="kpi-ratio">–</span>
+      <span class="kpi-sub" id="kpi-ratio-sub">minimum {{ '%.2f'|format(etat.min_ratio) }}</span>
+    </article>
+    <article class="card kpi">
+      <span class="kpi-label">Ajoutés au dernier passage</span>
+      <span class="kpi-value" id="kpi-last-added">–</span>
+      <span class="kpi-sub" id="kpi-total-added"></span>
+    </article>
+    <article class="card kpi">
+      <span class="kpi-label">Dernier passage</span>
+      <span class="kpi-value kpi-small" id="kpi-last-pass">–</span>
+      <span class="kpi-sub" id="kpi-duration"></span>
+    </article>
+    <article class="card kpi">
+      <span class="kpi-label">Prochain passage</span>
+      <span class="kpi-value kpi-small" id="kpi-next-pass">–</span>
+      <span class="kpi-sub">toutes les {{ (etat.interval // 60) }} min</span>
+    </article>
+  </section>
+
+  <div class="alert alert-error" id="last-error" hidden></div>
+  {% endif %}
+
+  <p class="muted footnote">Configuration, journal en direct et statistiques arrivent aux prochaines étapes.</p>
+</main>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='app.js') }}" defer></script>{% endblock %}
