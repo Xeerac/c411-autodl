@@ -22,7 +22,7 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Mode freeleech** (optionnel) : pendant un freeleech sur ton compte, la recherche s'élargit automatiquement (plus de catégories, plus de torrents, plus gros), puisque télécharger ne coûte rien.
 - ✅ **Alerte en cas de panne** : notification si le programme échoue plusieurs fois d'affilée, puis quand tout repart.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
-- ✅ **Fonctionne 24 h/24** : lanceur Windows et service systemd pour Linux, avec redémarrage automatique.
+- ✅ **Fonctionne 24 h/24** : lanceur Windows, service systemd pour Linux ou **conteneur Docker**, avec redémarrage automatique.
 
 > ⚠️ Projet communautaire, **non affilié à c411**. Il utilise uniquement l'API publique documentée sur c411.org (*Intégrations API*). Respecte les règles du site : tu restes responsable de ce que tu télécharges avec ton compte.
 
@@ -42,6 +42,7 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 4. [Lancer en continu](#lancer-en-continu)
    - [Sous Windows](#sous-windows)
    - [Sur un serveur Linux / VPS (Debian, Ubuntu…)](#sur-un-serveur-linux--vps-debian-ubuntu)
+   - [Avec Docker](#avec-docker)
 5. [Tous les réglages](#tous-les-réglages)
 6. [Commandes](#commandes)
 7. [Mettre à jour](#mettre-à-jour)
@@ -298,6 +299,45 @@ Pour un essai rapide sans installer de service : `bash lancer_h24.sh`. Attention
 
 > ⚠️ Ne fais pas tourner le programme **à deux endroits en même temps**, par exemple sur ton PC et sur le VPS. Chacun a son propre historique et ils ajouteraient tous les deux les mêmes torrents.
 
+### Avec Docker
+
+Si tu utilises déjà Docker (VPS, Unraid, Synology…), c411-autodl peut tourner dans un conteneur, à côté de cross-seed ou Prowlarr par exemple. L'image est légère : Python seul, sans aucune dépendance.
+
+**1. Récupérer le projet et le configurer :**
+
+```bash
+git clone https://github.com/Xeerac/c411-autodl.git ~/c411-autodl
+cd ~/c411-autodl
+cp .env.example .env
+nano .env          # remplis ta configuration (étape 4)
+mkdir -p donnees
+```
+
+**2. Tester, puis lancer :**
+
+```bash
+docker compose run --rm c411-autodl --dry-run      # essai à blanc
+docker compose up -d --build                       # lancement en continu
+docker compose logs -f c411-autodl                 # journal en direct (Ctrl+C pour quitter)
+```
+
+Le conteneur tourne **avec l'utilisateur 1000**, pas en root. Le dossier `donnees/` et le fichier `.env` doivent donc lui être accessibles. Si ton utilisateur n'a pas l'identifiant 1000 (commande `id`), adapte la ligne `user:` du `docker-compose.yml`, ou bien :
+
+```bash
+sudo chown -R 1000:1000 donnees .env
+```
+
+**Toutes les commandes ponctuelles** passent par `docker compose run --rm c411-autodl …`, par exemple `--bilan`, `--nettoyage --dry-run` ou `--recategoriser --dry-run`.
+
+**Tu as déjà un `docker-compose.yml`**, avec cross-seed, Prowlarr… ? Copie le bloc `c411-autodl` du fichier fourni dans le tien, en adaptant les chemins de `build:` et `volumes:`. Dans ce cas :
+
+- **cross-seed** se joint par le nom de son conteneur et non par `localhost` : mets `CROSS_SEED_URL=http://cross-seed:2468` dans le `.env` ;
+- **qBittorrent sur la même machine** se joint de la même façon : par le nom de son conteneur s'il est dans Docker, par exemple `QBIT_URL=http://qbittorrent:8080`.
+
+**Mettre à jour :** `git pull && docker compose up -d --build`.
+
+> ⚠️ Si tu passes de systemd à Docker, **arrête d'abord le service** : `sudo systemctl disable --now c411-autodl`. Sinon, les deux copies tourneraient en même temps.
+
 ---
 
 ## Tous les réglages
@@ -524,6 +564,7 @@ git pull
 ```
 
 Sur un VPS avec le service installé, relance-le ensuite : `sudo systemctl restart c411-autodl`.
+Avec Docker : `git pull && docker compose up -d --build`.
 
 Ton `.env` et ton historique (`donnees/`) ne sont jamais écrasés par une mise à jour.
 
@@ -615,6 +656,7 @@ c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme v
 | `lancer_h24.bat` | Lancement en continu sous Windows |
 | `lancer_h24.sh` | Lancement en continu sous Linux |
 | `installer_service.sh` | Installation en service systemd (Linux) |
+| `Dockerfile`, `docker-compose.yml` | Lancement avec Docker |
 | `LICENSE` | Licence MIT |
 | `CHANGELOG.md` | Historique des versions |
 | `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification |

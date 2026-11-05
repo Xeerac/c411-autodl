@@ -24,6 +24,7 @@ import logging
 import logging.handlers
 import os
 import re
+import signal
 import sys
 import time
 import urllib.error
@@ -33,7 +34,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "donnees"  # historique des ajouts et journal
@@ -871,6 +872,10 @@ def watchdog(cfg: dict, ctx: dict, errors: int, error: Exception | None = None) 
     return errors
 
 
+def _stop(signum, frame):
+    raise KeyboardInterrupt
+
+
 def _alert(cfg: dict, ctx: dict, text: str) -> None:
     """Alerte de panne / de reprise (si ALERTE_PANNE et des notifications sont configurées)."""
     if cfg["alert"] and ctx.get("notifier"):
@@ -1317,6 +1322,8 @@ def main() -> None:
         maybe_report(args, cfg, ctx)
         return
 
+    # Docker et systemd arrêtent le programme avec SIGTERM : on le traite comme un Ctrl+C (arrêt propre)
+    signal.signal(signal.SIGTERM, _stop)
     log.info("c411-autodl %s", __version__)
     log.info("Démarrage en continu : un passage toutes les %d s (ratio minimum %.2f%s%s). Ctrl+C pour arrêter.",
              args.boucle, cfg["min_ratio"], ", notifications actives" if ctx.get("notifier") else "",

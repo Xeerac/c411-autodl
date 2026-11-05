@@ -31,3 +31,18 @@ jobs:
       - name: Scripts shell
         if: runner.os == 'Linux'
         run: bash -n lancer_h24.sh && bash -n installer_service.sh
+
+  docker:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construction de l'image
+        run: docker build -t c411-autodl:test .
+      - name: Le programme démarre dans le conteneur
+        run: docker run --rm c411-autodl:test --version
+      - name: L'image ne contient ni .env ni données
+        run: |
+          docker run --rm --entrypoint sh c411-autodl:test -c 'test ! -e /app/.env && test -z "$(ls -A /app/donnees)" && whoami'
+      - name: Configuration d'exemple valide
+        run: docker compose config --quiet

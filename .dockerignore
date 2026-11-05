@@ -1,0 +1,12 @@
+# Rien de personnel dans l'image : la configuration et les données sont montées au lancement
+.env
+donnees/
+state.json
+*.log
+*.log.*
+
+.git/
+.github/
+tests/
+__pycache__/
+*.pyc

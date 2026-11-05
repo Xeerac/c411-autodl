@@ -1,0 +1,28 @@
+# Lancement de c411-autodl avec Docker :
+#   cp .env.example .env        puis remplis-le
+#   mkdir -p donnees
+#   docker compose up -d --build
+#
+# Tu as déjà un docker-compose.yml (cross-seed, Prowlarr…) ? Copie simplement le bloc « c411-autodl »
+# dedans, en adaptant les chemins de « build » et « volumes ».
+
+services:
+  c411-autodl:
+    build: .
+    image: c411-autodl:local
+    container_name: c411-autodl
+    # Utilisateur qui possède le dossier donnees/ et le fichier .env (commande « id » pour connaître le tien)
+    user: "1000:1000"
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./donnees:/app/donnees
+    environment:
+      - TZ=Europe/Paris
+    # Par défaut : en continu, un passage toutes les 5 min. Autre intervalle : command: ["--boucle", "600"]
+    init: true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,5 +1,11 @@
 # Historique des versions
 
+## v1.5.0 — 2026-11-05
+
+- **Docker** : `Dockerfile` (image légère, Python seul, utilisateur non root, fuseaux horaires inclus pour `BILAN_HEURE`) et `docker-compose.yml` d'exemple. La configuration (`.env`) et les données (`donnees/`) sont montées, rien de personnel dans l'image. Les commandes ponctuelles passent par `docker compose run --rm c411-autodl …`.
+- **Arrêt propre** sur `SIGTERM`, le signal envoyé par Docker et systemd : le journal indique l'arrêt et le nombre de torrents ajoutés.
+- La vérification automatique de GitHub construit et teste aussi l'image Docker.
+
 ## v1.4.0 — 2026-11-05
 
 **Nouveautés**
