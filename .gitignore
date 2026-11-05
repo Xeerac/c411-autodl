@@ -17,3 +17,6 @@ docker-compose.override.yml
 
 # Environnement Python local (dépendances de l interface)
 .venv/
+
+# Réglages de l outil de design (propres à la machine de développement)
+.impeccable/

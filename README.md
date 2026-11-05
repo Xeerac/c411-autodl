@@ -8,9 +8,10 @@
 
 **Ajoute automatiquement dans ta seedbox les nouveaux torrents c411 qui t'intéressent, sans jamais faire passer ton ratio sous le seuil que tu choisis.**
 
-Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou Comics/Manga. Dès qu'un torrent correspond à tes critères, il l'envoie dans ton qBittorrent, qui le télécharge puis le seede. Tu peux être prévenu sur Discord ou Telegram.
+Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou Comics/Manga. Dès qu'un torrent correspond à tes critères, il l'envoie dans ton qBittorrent, qui le télécharge puis le seede. Tu peux être prévenu sur Discord ou Telegram, et tout suivre ou régler depuis une **interface web**.
 
-- ✅ **Aucune installation compliquée** : un seul fichier Python, sans dépendance. Il tourne sous Windows, Linux et sur un VPS.
+- ✅ **Interface web** (nouveau en v2.0) : tableau de bord, configuration à la souris avec tests des services, journal en direct. Utilisable aussi sur téléphone.
+- ✅ **Aucune installation compliquée** : Python seul, sans dépendance pour la ligne de commande. Il tourne sous Windows, Linux et sur un VPS.
 - ✅ **Pas besoin de SSH sur la seedbox** : tout passe par l'API officielle de c411 et par la WebUI de qBittorrent.
 - ✅ **Protection du ratio** : rien n'est téléchargé si ton ratio passerait sous le minimum choisi. Le freeleech est pris en compte.
 - ✅ **Cible ce qui rapporte de l'upload** : ignore les torrents déjà sur-seedés et traite en priorité les plus demandés (beaucoup de leechers, peu de seeders).
@@ -43,14 +44,18 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
    - [Sous Windows](#sous-windows)
    - [Sur un serveur Linux / VPS (Debian, Ubuntu…)](#sur-un-serveur-linux--vps-debian-ubuntu)
    - [Avec Docker](#avec-docker)
-5. [Tous les réglages](#tous-les-réglages)
-6. [Commandes](#commandes)
-7. [Mettre à jour](#mettre-à-jour)
-8. [Dépannage / FAQ](#dépannage--faq)
-9. [Sécurité](#sécurité)
-10. [Contenu du dépôt](#contenu-du-dépôt)
-11. [Contribuer](#contribuer)
-12. [Licence](#licence)
+5. [Interface web](#interface-web)
+   - [Lancer l'interface](#lancer-linterface)
+   - [Premier lancement](#premier-lancement)
+   - [Y accéder depuis ton PC : le tunnel SSH](#y-accéder-depuis-ton-pc--le-tunnel-ssh)
+6. [Tous les réglages](#tous-les-réglages)
+7. [Commandes](#commandes)
+8. [Mettre à jour](#mettre-à-jour)
+9. [Dépannage / FAQ](#dépannage--faq)
+10. [Sécurité](#sécurité)
+11. [Contenu du dépôt](#contenu-du-dépôt)
+12. [Contribuer](#contribuer)
+13. [Licence](#licence)
 
 ---
 
@@ -308,7 +313,7 @@ Pour un essai rapide sans installer de service : `bash lancer_h24.sh`. Attention
 
 ### Avec Docker
 
-Si tu utilises déjà Docker (VPS, Unraid, Synology…), c411-autodl peut tourner dans un conteneur, à côté de cross-seed ou Prowlarr par exemple. L'image est légère : Python seul, sans aucune dépendance.
+Si tu utilises déjà Docker (VPS, Unraid, Synology…), c411-autodl peut tourner dans un conteneur, à côté de cross-seed ou Prowlarr par exemple. L'image contient Python et l'[interface web](#interface-web), que le `docker-compose.yml` fourni lance directement.
 
 **1. Récupérer le projet et le configurer :**
 
@@ -324,7 +329,7 @@ mkdir -p donnees
 
 ```bash
 docker compose run --rm c411-autodl --dry-run      # essai à blanc
-docker compose up -d --build                       # lancement en continu
+docker compose up -d --build                       # lancement en continu, avec l'interface web
 docker compose logs -f c411-autodl                 # journal en direct (Ctrl+C pour quitter)
 ```
 
@@ -361,7 +366,84 @@ Pour **revenir à systemd** : `sudo bash migrer_vers_docker.sh --retour`.
 
 **Mettre à jour :** `git pull && docker compose up -d --build`.
 
+**Sans interface ?** Remplace la ligne `command:` du `docker-compose.yml` par `command: ["--boucle", "300"]` et retire le bloc `ports:`. C'est le fonctionnement de la v1.
+
 > ⚠️ Si tu passes de systemd à Docker, **arrête d'abord le service** : `sudo systemctl disable --now c411-autodl`. Sinon, les deux copies tourneraient en même temps.
+
+---
+
+## Interface web
+
+Depuis la v2.0, c411-autodl a une **interface web** : un tableau de bord pour suivre ce qu'il fait, une page de configuration pour tout régler sans toucher au `.env`, et un journal en direct. Elle est **facultative** : la ligne de commande fonctionne exactement comme avant.
+
+### Ce qu'on y trouve
+
+- **Tableau de bord** : l'état du programme (actif, en pause, freeleech, en panne), ton ratio avec une jauge, le volume envoyé par tes torrents, le dernier et le prochain passage. On y voit aussi l'état de qBittorrent, de cross-seed et de Prowlarr (ces deux derniers seulement s'ils sont configurés), les **derniers ajouts** avec ce qu'ils ont déjà envoyé, et le **rendement par type**.
+- **Actions** : passage immédiat, pause et reprise, essai à blanc, bilan, aperçu du nettoyage et aperçu du rangement. Les aperçus **ne modifient jamais rien**.
+- **Configuration** : tous les réglages, rangés par thème, avec une explication sous chaque champ. Un bouton **« Tester »** vérifie chaque service (clés c411, qBittorrent, cross-seed, Prowlarr, notifications) **avant même d'enregistrer**. Les changements sont vérifiés, puis pris en compte **sans redémarrage**.
+- **Journal en direct**, avec filtres (ajouts, problèmes, freeleech, nettoyage, cross-seed) et recherche.
+- Un affichage adapté au **téléphone**, avec les onglets en bas de l'écran.
+
+### Lancer l'interface
+
+**Avec Docker** (recommandé) : le `docker-compose.yml` fourni lance déjà l'interface. Elle écoute sur le port **8411, uniquement depuis la machine** (`127.0.0.1:8411`).
+
+```bash
+docker compose up -d --build
+docker compose logs c411-autodl | grep "code d'installation"
+```
+
+**Sans Docker**, installe d'abord les dépendances de l'interface, puis lance-la :
+
+```bash
+pip install -r requirements-interface.txt
+python c411_autodl.py --interface
+```
+
+Elle remplace alors `--boucle` : le moteur tourne en tâche de fond, piloté par l'interface. Pour un service systemd, remplace `--boucle 300` par `--interface` dans la ligne `ExecStart` du service.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--interface` | – | Lance l'interface web et le moteur |
+| `--port` | `8411` | Port de l'interface |
+| `--hote` | `127.0.0.1` | Adresse d'écoute. Garde `127.0.0.1` hors Docker : l'interface n'est alors joignable que depuis la machine |
+| `--lecture-seule` | – | Le moteur ne fait **rien** : ni ajout, ni suppression, ni rangement, ni notification. Pratique pour essayer l'interface sur une autre machine que celle qui fait vraiment tourner le programme |
+
+### Premier lancement
+
+1. Au démarrage, le programme affiche dans son journal un **code d'installation**, par exemple `4F2A-91C0-7B3E`. Il est aussi enregistré dans `donnees/code-installation.txt`.
+2. Ouvre l'interface : la page d'installation te demande ce code, puis un nom d'utilisateur et un mot de passe (10 caractères minimum).
+3. Ton `.env` est **importé automatiquement** dans `donnees/config.json`. Tu retrouves tous tes réglages.
+
+Le code sert à ce que personne d'autre ne puisse créer le compte à ta place. Une fois le compte créé, il est supprimé.
+
+À partir de là, **c'est `donnees/config.json` qui fait foi** : modifie tes réglages depuis l'interface, le `.env` n'est plus lu. Sans interface, rien ne change : le `.env` reste utilisé comme avant.
+
+### Y accéder depuis ton PC : le tunnel SSH
+
+L'interface n'est **jamais exposée sur Internet**. Depuis ton PC, on y accède par un **tunnel SSH** : ta connexion SSH habituelle transporte aussi la page de l'interface.
+
+**Avec PuTTY :**
+1. Charge ta session, puis va dans **Connection → SSH → Tunnels**.
+2. Mets **Source port** `8411` et **Destination** `localhost:8411`, puis clique sur **Add**.
+3. Reviens dans **Session**, clique sur **Save** pour ne plus avoir à le refaire, puis sur **Open**.
+4. Tant que PuTTY est connecté, l'interface s'ouvre sur **http://localhost:8411**.
+
+**Avec un terminal** (Windows, macOS ou Linux), garde cette fenêtre ouverte :
+
+```bash
+ssh -L 8411:localhost:8411 utilisateur@ip-du-vps
+```
+
+Si l'interface tourne directement sur ton PC, pas besoin de tunnel : ouvre simplement http://localhost:8411.
+
+### Sécurité de l'interface
+
+- **Accessible uniquement depuis la machine**, ou par le tunnel. Le mot de passe reste obligatoire, même ainsi.
+- **Mot de passe haché** (scrypt). Après **5 échecs** en 15 minutes, l'adresse est bloquée pendant 15 minutes.
+- **Clés et mots de passe jamais réaffichés** : un champ secret indique seulement s'il est enregistré. Le journal masque automatiquement toute valeur secrète.
+- Protection contre les requêtes forgées (CSRF), en-têtes de sécurité stricts, et **aucune ressource externe** : polices et icônes sont servies par l'interface elle-même.
+- Le journal note **quels** réglages ont été modifiés, jamais leurs valeurs.
 
 ---
 
@@ -423,7 +505,7 @@ Tous les réglages se trouvent dans le fichier `.env`.
 
 | Réglage | Défaut | Description |
 |---|---|---|
-| `PAGES` | `2` | Pages lues à chaque passage, avec 100 torrents par page (6 au maximum) |
+| `PAGES` | `1` | Pages lues à chaque passage, avec 100 torrents par page (6 au maximum) |
 | `PAGE_SIZE` | `100` | Nombre de torrents par page. 100 est le maximum accepté par c411 |
 | `MAX_PER_RUN` | `50` | Nombre maximum de torrents ajoutés par passage |
 | `MIN_FREE_GB` | `20` | Espace disque à garder libre sur la seedbox, en Go |
@@ -575,6 +657,8 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `python c411_autodl.py --bilan` | Affiche le bilan tout de suite (et l'envoie en notification) |
 | `python c411_autodl.py --recategoriser --dry-run` | Montre comment les torrents existants seraient rangés par type |
 | `python c411_autodl.py --recategoriser` | Range les torrents existants (ajoute `--garder-emplacement` pour ne déplacer aucun fichier) |
+| `python c411_autodl.py --interface` | Lance l'interface web et le moteur (voir [Interface web](#interface-web)) |
+| `python c411_autodl.py --interface --lecture-seule` | Interface pour essayer, sans rien ajouter, supprimer ni notifier |
 | `python c411_autodl.py --version` | Affiche la version |
 | `python c411_autodl.py -v` | Mode détaillé : affiche chaque torrent ignoré et la raison |
 
@@ -594,7 +678,9 @@ git pull
 Sur un VPS avec le service installé, relance-le ensuite : `sudo systemctl restart c411-autodl`.
 Avec Docker : `git pull && docker compose up -d --build`.
 
-Ton `.env` et ton historique (`donnees/`) ne sont jamais écrasés par une mise à jour.
+Ton `.env`, ta configuration de l'interface et ton historique (`donnees/`) ne sont jamais écrasés par une mise à jour.
+
+**Passer de la v1 à la v2 :** rien n'est perdu. Avec Docker, mets à jour comme d'habitude, en prenant le nouveau `docker-compose.yml` pour avoir l'interface. Au premier lancement, ton `.env` est importé automatiquement.
 
 ---
 
@@ -671,6 +757,26 @@ Dans un conteneur, `localhost` désigne le conteneur lui-même, pas ta machine. 
 </details>
 
 <details>
+<summary><b>Interface : j'ai perdu le code d'installation</b></summary>
+
+Il est enregistré dans `donnees/code-installation.txt` jusqu'à la création de ton compte. Il apparaît aussi dans le journal du programme : `docker compose logs c411-autodl | grep "code d'installation"`.
+</details>
+
+<details>
+<summary><b>Interface : j'ai oublié mon mot de passe</b></summary>
+
+Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un nouveau code d'installation s'affiche dans le journal, et tu peux recréer ton compte. Ta configuration (`donnees/config.json`) et ton historique ne sont pas touchés.
+</details>
+
+<details>
+<summary><b>Interface : « localhost:8411 » ne s'ouvre pas</b></summary>
+
+- Vérifie que ton tunnel SSH est bien ouvert. PuTTY doit rester connecté, avec la ligne `L8411  localhost:8411` dans Connection → SSH → Tunnels.
+- Vérifie que l'interface tourne : `docker compose ps` doit montrer `127.0.0.1:8411->8411/tcp`.
+- Si un autre programme utilise déjà le port 8411 sur ton PC, le tunnel ne peut pas s'ouvrir. Choisis un autre port local, par exemple `8412`, et ouvre http://localhost:8412.
+</details>
+
+<details>
 <summary><b>Où sont les journaux ?</b></summary>
 
 - Dans `donnees/c411_autodl.log`, limité à 4 fichiers de 5 Mo. L'historique des torrents ajoutés est dans `donnees/state.json`.
@@ -688,6 +794,8 @@ Dans un conteneur, `localhost` désigne le conteneur lui-même, pas ta machine. 
 - Ta **passkey c411** (dans l'URL d'annonce) n'est pas utilisée par ce programme : ne la mets nulle part.
 - Le programme ne contacte que c411, ta WebUI qBittorrent et, si tu les as configurés, cross-seed, Discord ou Telegram.
 - Avec Docker, le programme tourne avec un **utilisateur non root**, et l'image ne contient ni ta configuration ni tes données : elles sont montées au lancement.
+- L'interface web n'est **jamais exposée sur Internet** : voir [Sécurité de l'interface](#sécurité-de-linterface).
+- `donnees/config.json` (ta configuration de l'interface) et `donnees/interface.json` (ton compte, mot de passe haché) sont lisibles par leur propriétaire seulement. Ne les partage pas.
 
 ---
 
@@ -695,7 +803,9 @@ Dans un conteneur, `localhost` désigne le conteneur lui-même, pas ta machine. 
 
 | Fichier | Rôle |
 |---|---|
-| `c411_autodl.py` | Le programme |
+| `c411_autodl.py` | Le lanceur : c'est la commande à utiliser |
+| `autodl/` | Le programme : moteur, accès à c411 et qBittorrent, filtres, configuration, et l'interface web (`autodl/web/`) |
+| `requirements-interface.txt` | Dépendances de l'interface web, déjà incluses dans l'image Docker |
 | `.env.example` | Modèle de configuration à copier en `.env` |
 | `lancer_h24.bat` | Lancement en continu sous Windows |
 | `lancer_h24.sh` | Lancement en continu sous Linux |
@@ -704,8 +814,8 @@ Dans un conteneur, `localhost` désigne le conteneur lui-même, pas ta machine. 
 | `migrer_vers_docker.sh` | Bascule d'une installation systemd vers Docker, avec retour possible |
 | `LICENSE` | Licence MIT |
 | `CHANGELOG.md` | Historique des versions |
-| `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification |
-| `donnees/` | Créé au premier lancement : historique et journal, non versionnés |
+| `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification. Ceux de l'interface demandent `requirements-interface.txt` et `httpx` |
+| `donnees/` | Créé au premier lancement : historique, journal et configuration de l'interface, non versionnés |
 
 ---
 

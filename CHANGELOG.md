@@ -1,5 +1,26 @@
 # Historique des versions
 
+## v2.0.0 — 2026-11-05
+
+**L'interface web** (`--interface`, lancée par défaut avec Docker)
+- **Tableau de bord** : état du programme, ratio et jauge, volume envoyé, dernier et prochain passage ; état de qBittorrent, cross-seed et Prowlarr (ces deux derniers seulement s'ils sont configurés) ; derniers ajouts avec ce qu'ils ont envoyé ; rendement par type de contenu.
+- **Actions** : passage immédiat, pause, reprise, essai à blanc, bilan, aperçus du nettoyage et du rangement (les aperçus ne modifient jamais rien).
+- **Configuration** de tous les réglages, rangés par thème : vérification avant enregistrement, prise en compte sans redémarrage, boutons « Tester » pour chaque service (même sur des valeurs non encore enregistrées).
+- **Journal en direct** avec filtres et recherche.
+- Affichage adapté au téléphone, thème sombre, polices et icônes servies localement.
+- **Sécurité** : accessible uniquement depuis la machine (tunnel SSH), code d'installation au premier lancement, mot de passe haché (scrypt), blocage après 5 échecs, protection CSRF, en-têtes stricts, secrets jamais réaffichés et masqués dans le journal.
+- Premier lancement : le `.env` est importé automatiquement dans `donnees/config.json`.
+- `--lecture-seule` : pour essayer l'interface sans rien ajouter, supprimer ni notifier.
+
+**Sous le capot**
+- Le programme est découpé en modules (`autodl/`) ; `c411_autodl.py` reste la commande à utiliser.
+- Tous les réglages sont décrits à un seul endroit (`autodl/config.py`) ; toutes les erreurs de configuration sont listées d'un coup ; une valeur vide prend la valeur par défaut.
+- Nouveaux réglages facultatifs : `PROWLARR_URL`, `PROWLARR_API_KEY` (état de Prowlarr dans l'interface).
+- Le bilan n'enregistre plus de relevé pendant un essai à blanc.
+- 115 tests (59 de plus).
+
+**Mise à jour depuis la v1** : rien n'est perdu. Avec Docker, prends le nouveau `docker-compose.yml` pour avoir l'interface ; sans interface, la ligne de commande fonctionne exactement comme avant.
+
 ## v1.5.1 — 2026-11-05
 
 Mise à jour de la documentation :

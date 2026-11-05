@@ -92,6 +92,9 @@ services:
     user: "$OWNER"
     # Réseau de la machine : les adresses en localhost du .env (qBittorrent, cross-seed) restent valables
     network_mode: host
+    # Incompatible avec le réseau de la machine : on annule la publication de ports du fichier principal
+    ports: !reset []
+    # Même fonctionnement que le service systemd. Pour l'interface web : ["--interface", "--port", "8411"]
     command: ["--boucle", "$INTERVAL"]
 EOF
 compose config --quiet || fail "docker-compose.yml invalide"

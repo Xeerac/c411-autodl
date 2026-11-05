@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 
-__version__ = "1.5.1"
+__version__ = "2.0.0"
 
 
 # Dossier du programme (au-dessus du paquet autodl/) : on y trouve .env et donnees/
