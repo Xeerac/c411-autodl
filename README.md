@@ -2,7 +2,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/Xeerac/c411-autodl?style=social)](https://github.com/Xeerac/c411-autodl/stargazers)
 [![Licence MIT](https://img.shields.io/github/license/Xeerac/c411-autodl)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![Tests](https://github.com/Xeerac/c411-autodl/actions/workflows/tests.yml/badge.svg)](https://github.com/Xeerac/c411-autodl/actions/workflows/tests.yml)
 [![Version](https://img.shields.io/github/v/release/Xeerac/c411-autodl)](https://github.com/Xeerac/c411-autodl/releases)
 
@@ -71,7 +71,7 @@ Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois 
 
 - Un **compte c411**.
 - Un **qBittorrent avec la WebUI activée**, sur une seedbox (Seedhost, Ultra.cc, etc.) ou sur ta propre machine. Testé avec la version 5.3 ; les versions 4.x récentes devraient aussi fonctionner.
-- **Python 3.9 ou plus récent** sur la machine qui fera tourner le programme :
+- **Python 3.10 ou plus récent** sur la machine qui fera tourner le programme :
   - **Windows** : télécharge Python sur [python.org](https://www.python.org/downloads/). Pendant l'installation, **coche « Add python.exe to PATH »**.
   - **Debian / Ubuntu** : Python 3 est déjà installé. Sinon : `sudo apt install python3`.
 

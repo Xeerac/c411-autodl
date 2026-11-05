@@ -11,7 +11,7 @@
 - La session qBittorrent est gardée entre deux passages, avec reconnexion automatique si elle expire.
 - L'historique (`donnees/state.json`) enregistre le type et la taille des torrents ajoutés.
 - Nouvelle commande `--version`.
-- **Tests automatiques** (40 tests, sans accès réseau) lancés par GitHub à chaque modification, sous Linux et Windows, de Python 3.9 à 3.13.
+- **Tests automatiques** (40 tests, sans accès réseau) lancés par GitHub à chaque modification, sous Linux et Windows, de Python 3.10 à 3.13.
 
 ## v1.2.0 — 2026-11-05
 

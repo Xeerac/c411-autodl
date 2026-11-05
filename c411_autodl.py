@@ -3,7 +3,7 @@
 c411_autodl - Surveille des catégories c411 (API Torznab) et ajoute automatiquement
 dans qBittorrent les torrents qui respectent tes critères, tant que ton ratio le permet.
 
-Aucune dépendance externe : Python 3.9+ uniquement. Configuration dans le fichier .env.
+Aucune dépendance externe : Python 3.10+ uniquement. Configuration dans le fichier .env.
 
 Usage :
     python c411_autodl.py                # un passage
