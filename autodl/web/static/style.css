@@ -108,7 +108,11 @@ input::placeholder { color: var(--text-mute); }
 .page { max-width: 1100px; margin: 0 auto; padding: 1.6rem clamp(1rem, 3vw, 2rem) 3rem; display: grid; gap: 1.1rem; }
 
 .hero { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem; flex-wrap: wrap;
-        border-left: 3px solid var(--state, var(--text-mute)); }
+        /* La couleur de l'état teinte légèrement le fond et la bordure, sans liseré épais */
+        background:
+          radial-gradient(600px 220px at 0% 0%, color-mix(in srgb, var(--state, var(--text-mute)) 12%, transparent), transparent 70%),
+          linear-gradient(180deg, var(--surface), var(--bg-elev));
+        border-color: color-mix(in srgb, var(--state, var(--text-mute)) 28%, var(--border)); }
 .hero h1 { font-size: 1.7rem; }
 .hero-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
 .pill { display: inline-flex; align-items: center; gap: .45rem; font: 700 .75rem/1 var(--font);
