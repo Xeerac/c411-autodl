@@ -327,6 +327,24 @@ Le conteneur tourne **avec l'utilisateur 1000**, pas en root. Le dossier `donnee
 sudo chown -R 1000:1000 donnees .env
 ```
 
+**Tu utilises déjà la version systemd** (`installer_service.sh`) ? Une seule commande suffit pour passer sous Docker :
+
+```bash
+cd ~/c411-autodl && git pull
+sudo bash migrer_vers_docker.sh
+```
+
+Le script :
+1. vérifie que Docker est installé et que ta configuration est en place ;
+2. reprend l'**utilisateur** et l'**intervalle** de ton service systemd ;
+3. construit l'image et lance un **essai à blanc dans le conteneur**. S'il échoue, il s'arrête **sans rien changer** et ton service continue de tourner ;
+4. arrête et désactive le service systemd, puis démarre le conteneur ;
+5. vérifie que le conteneur tourne bien. Sinon, il **relance automatiquement le service systemd**.
+
+Ton `.env` et ton dossier `donnees/` sont repris tels quels. Le conteneur utilise le **réseau de la machine**, donc les adresses en `localhost` de ton `.env` (qBittorrent, cross-seed) continuent de fonctionner sans modification. Les réglages propres à ta machine sont écrits dans `docker-compose.override.yml`, que Git ignore : tes futurs `git pull` ne créeront aucun conflit.
+
+Pour **revenir à systemd** : `sudo bash migrer_vers_docker.sh --retour`.
+
 **Toutes les commandes ponctuelles** passent par `docker compose run --rm c411-autodl …`, par exemple `--bilan`, `--nettoyage --dry-run` ou `--recategoriser --dry-run`.
 
 **Tu as déjà un `docker-compose.yml`**, avec cross-seed, Prowlarr… ? Copie le bloc `c411-autodl` du fichier fourni dans le tien, en adaptant les chemins de `build:` et `volumes:`. Dans ce cas :
@@ -657,6 +675,7 @@ c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme v
 | `lancer_h24.sh` | Lancement en continu sous Linux |
 | `installer_service.sh` | Installation en service systemd (Linux) |
 | `Dockerfile`, `docker-compose.yml` | Lancement avec Docker |
+| `migrer_vers_docker.sh` | Bascule d'une installation systemd vers Docker, avec retour possible |
 | `LICENSE` | Licence MIT |
 | `CHANGELOG.md` | Historique des versions |
 | `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification |

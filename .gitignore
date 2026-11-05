@@ -11,3 +11,6 @@ state.tmp
 # Python
 __pycache__/
 *.pyc
+
+# Réglages Docker propres à la machine (créés par migrer_vers_docker.sh)
+docker-compose.override.yml

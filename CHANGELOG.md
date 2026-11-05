@@ -3,6 +3,7 @@
 ## v1.5.0 — 2026-11-05
 
 - **Docker** : `Dockerfile` (image légère, Python seul, utilisateur non root, fuseaux horaires inclus pour `BILAN_HEURE`) et `docker-compose.yml` d'exemple. La configuration (`.env`) et les données (`donnees/`) sont montées, rien de personnel dans l'image. Les commandes ponctuelles passent par `docker compose run --rm c411-autodl …`.
+- **`migrer_vers_docker.sh`** : bascule une installation systemd vers Docker en une commande. Il reprend l'utilisateur et l'intervalle, utilise le réseau de la machine pour que les adresses `localhost` du `.env` restent valables, lance un essai à blanc dans le conteneur avant toute modification et revient automatiquement à systemd en cas d'échec. Option `--retour` pour revenir à systemd.
 - **Arrêt propre** sur `SIGTERM`, le signal envoyé par Docker et systemd : le journal indique l'arrêt et le nombre de torrents ajoutés.
 - La vérification automatique de GitHub construit et teste aussi l'image Docker.
 

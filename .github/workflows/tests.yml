@@ -30,7 +30,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Scripts shell
         if: runner.os == 'Linux'
-        run: bash -n lancer_h24.sh && bash -n installer_service.sh
+        run: bash -n lancer_h24.sh && bash -n installer_service.sh && bash -n migrer_vers_docker.sh
 
   docker:
     name: Image Docker
