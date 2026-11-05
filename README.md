@@ -3,6 +3,8 @@
 [![GitHub stars](https://img.shields.io/github/stars/Xeerac/c411-autodl?style=social)](https://github.com/Xeerac/c411-autodl/stargazers)
 [![Licence MIT](https://img.shields.io/github/license/Xeerac/c411-autodl)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Tests](https://github.com/Xeerac/c411-autodl/actions/workflows/tests.yml/badge.svg)](https://github.com/Xeerac/c411-autodl/actions/workflows/tests.yml)
+[![Version](https://img.shields.io/github/v/release/Xeerac/c411-autodl)](https://github.com/Xeerac/c411-autodl/releases)
 
 **Ajoute automatiquement dans ta seedbox les nouveaux torrents c411 qui t'intéressent, sans jamais faire passer ton ratio sous le seuil que tu choisis.**
 
@@ -14,6 +16,9 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Cible ce qui rapporte de l'upload** : ignore les torrents déjà sur-seedés et traite en priorité les plus demandés (beaucoup de leechers, peu de seeders).
 - ✅ **Filtres** : catégories, complétés, seeders, leechers, taille min/max, formats (epub, cbz…), mots requis ou exclus, groupes exclus, expression régulière.
 - ✅ **Nettoyage automatique** (optionnel) : retire de qBittorrent les torrents supprimés de c411, avec une double vérification.
+- ✅ **Bilan quotidien** (optionnel) : volume téléchargé et envoyé, évolution du ratio, et **ce qui rapporte le plus** par type de contenu.
+- ✅ **Une catégorie qBittorrent par type** (optionnel) : `c411-ebook`, `c411-bd`, `c411-presse`…
+- ✅ **Intégration cross-seed** (optionnel) : prévient cross-seed dès qu'un téléchargement est terminé.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows et service systemd pour Linux, avec redémarrage automatique.
 
@@ -55,6 +60,8 @@ Toutes les 5 minutes (c'est réglable), le programme :
 6. **Envoie le .torrent à qBittorrent**, qui télécharge puis seede.
 7. **Te prévient** sur Discord ou Telegram, si tu l'as activé.
 8. **Toutes les heures** (si `NETTOYAGE_SUPPRIMES=true`), il retire de qBittorrent les torrents qui ont été supprimés de c411.
+9. **Dès qu'un téléchargement est terminé** (si `CROSS_SEED_URL` est rempli), il prévient cross-seed.
+10. **Chaque matin** (si `BILAN_QUOTIDIEN=true`), il t'envoie un bilan.
 
 Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois le même torrent.
 
@@ -366,6 +373,24 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `QBIT_TAGS` | `c411,autodl` | Tags ajoutés aux torrents |
 | `QBIT_SAVEPATH` | *(vide)* | Dossier de téléchargement (vide = dossier par défaut de qBittorrent) |
 | `QBIT_PAUSED` | `false` | `true` = les torrents sont ajoutés en pause |
+| `QBIT_CATEGORIE_PAR_TYPE` | `false` | `true` = une catégorie par type de contenu, à la place de `QBIT_CATEGORY` (voir ci-dessous) |
+| `QBIT_CATEGORIE_PREFIXE` | `c411` | Début du nom de ces catégories |
+
+**Catégories par type** (`QBIT_CATEGORIE_PAR_TYPE=true`) : chaque torrent est rangé selon sa catégorie c411.
+
+| Catégorie c411 | Catégorie qBittorrent |
+|---|---|
+| `7020` eBooks | `c411-ebook` |
+| `7030` BD, comics, mangas | `c411-bd` |
+| `7010` Presse | `c411-presse` |
+| `3030` Livres audio | `c411-livre-audio` |
+| `3xxx` Musique | `c411-musique` |
+| `2xxx` Films et vidéos | `c411-film` |
+| `5xxx` Séries et émissions | `c411-serie` |
+| `4xxx` Logiciels | `c411-logiciel` |
+| `1xxx` Jeux | `c411-jeu` |
+
+Les catégories sont créées automatiquement dans qBittorrent. Les torrents déjà présents restent dans leur catégorie actuelle.
 
 ### Nettoyage des torrents supprimés de c411
 
@@ -375,7 +400,7 @@ Quand un torrent est supprimé de c411 (retiré par son uploader, doublon, etc.)
 |---|---|---|
 | `NETTOYAGE_SUPPRIMES` | `false` | `true` active le nettoyage |
 | `NETTOYAGE_ACTION` | `fichiers` | `fichiers` : retire le torrent **et supprime ses fichiers**. `torrent` : retire le torrent, garde les fichiers. `pause` : met en pause et ajoute le tag `c411-supprime`, sans rien supprimer |
-| `NETTOYAGE_TAG` | `autodl` | Seuls les torrents qui portent ce tag sont vérifiés, c'est-à-dire par défaut ceux ajoutés par le programme |
+| `NETTOYAGE_TAG` | `autodl` | Tag des torrents gérés par le programme : seuls eux sont nettoyés, envoyés à cross-seed et comptés dans le bilan |
 | `NETTOYAGE_MINUTES` | `60` | Fréquence de la vérification |
 
 **Sécurités :**
@@ -384,6 +409,40 @@ Quand un torrent est supprimé de c411 (retiré par son uploader, doublon, etc.)
 - tes torrents ajoutés à la main ne sont jamais touchés, car ils n'ont pas le tag `autodl`.
 
 Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --nettoyage --dry-run`.
+
+### cross-seed
+
+Si tu utilises [cross-seed](https://www.cross-seed.org) **sur la même machine**, le programme le prévient dès qu'un torrent qu'il a ajouté a fini de télécharger. cross-seed cherche alors tout de suite la même release sur tes autres trackers, au lieu d'attendre son prochain passage. Tu y arrives ainsi **parmi les premiers seeders**, et c'est là qu'on envoie le plus.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `CROSS_SEED_URL` | *(vide)* | Adresse de cross-seed, par exemple `http://localhost:2468`. Vide = désactivé |
+| `CROSS_SEED_API_KEY` | *(vide)* | Clé de l'API cross-seed : `cross-seed api-key`, ou avec Docker `docker compose exec cross-seed cross-seed api-key` |
+
+Au premier lancement, les torrents déjà terminés ne sont **pas** renvoyés : la recherche quotidienne de cross-seed s'en occupe déjà. Si cross-seed est arrêté, le programme réessaie au passage suivant.
+
+### Bilan quotidien
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `BILAN_QUOTIDIEN` | `false` | `true` = un bilan par jour, dans le journal et sur Discord/Telegram |
+| `BILAN_HEURE` | `8` | Heure d'envoi (0 à 23) |
+
+Exemple :
+
+```
+📊 Bilan c411-autodl (depuis le 04/11 à 08:00)
+• 12 torrent(s) ajouté(s) · 1.80 Go téléchargés · 6.40 Go envoyés
+• Ratio c411 : 2.80 (+0.04)
+Rendement par type (envoyé ÷ taille, depuis l'ajout) :
+• bd : ×7.31 (47 torrent(s), 47.46 Go envoyés)
+• ebook : ×6.50 (94 torrent(s), 12.76 Go envoyés)
+• livre-audio : ×0.19 (1 torrent(s), 53.0 Mo envoyés)
+```
+
+Le **rendement** indique combien chaque type de contenu a renvoyé par rapport à sa taille : ×7 veut dire qu'en moyenne, chaque torrent a été envoyé 7 fois. Ça permet de voir quelles catégories et quels réglages valent le coup.
+
+Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une journée à comparer. Pour en voir un tout de suite : `python c411_autodl.py --bilan`.
 
 ### Notifications
 
@@ -409,6 +468,8 @@ Pour voir ce qui serait retiré, sans rien toucher : `python c411_autodl.py --ne
 | `python c411_autodl.py --test-notif` | Envoie une notification de test |
 | `python c411_autodl.py --nettoyage --dry-run` | Affiche les torrents supprimés de c411 qui seraient retirés, sans rien toucher |
 | `python c411_autodl.py --nettoyage` | Lance le nettoyage tout de suite |
+| `python c411_autodl.py --bilan` | Affiche le bilan tout de suite (et l'envoie en notification) |
+| `python c411_autodl.py --version` | Affiche la version |
 | `python c411_autodl.py -v` | Mode détaillé : affiche chaque torrent ignoré et la raison |
 
 Les options se combinent, par exemple `--rattrapage --dry-run`.
@@ -517,6 +578,8 @@ c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme v
 | `lancer_h24.sh` | Lancement en continu sous Linux |
 | `installer_service.sh` | Installation en service systemd (Linux) |
 | `LICENSE` | Licence MIT |
+| `CHANGELOG.md` | Historique des versions |
+| `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification |
 | `donnees/` | Créé au premier lancement : historique et journal, non versionnés |
 
 ---

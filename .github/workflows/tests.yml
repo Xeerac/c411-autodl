@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Python ${{ matrix.python }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.9", "3.11", "3.13"]
+        include:
+          - os: windows-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Vérification de la syntaxe
+        run: python -m py_compile c411_autodl.py
+      - name: Tests (aucun accès réseau, tout est simulé)
+        run: python -m unittest discover -s tests -v
+      - name: Scripts shell
+        if: runner.os == 'Linux'
+        run: bash -n lancer_h24.sh && bash -n installer_service.sh

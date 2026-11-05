@@ -33,10 +33,12 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+__version__ = "1.3.0"
+
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "donnees"  # historique des ajouts et journal
 TORZNAB_NS = "http://torznab.com/schemas/2015/feed"
-USER_AGENT = "c411-autodl/1.0"
+USER_AGENT = f"c411-autodl/{__version__}"
 
 log = logging.getLogger("c411")
 
@@ -286,19 +288,32 @@ class QBit:
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
         )
         self.user, self.password = user, password
+        self.logged = False  # la session est gardée entre deux passages
 
     def _req(self, path: str, data: bytes | None = None, ctype: str | None = None) -> bytes:
         headers = {"Referer": self.base, "Origin": self.base, "User-Agent": USER_AGENT}
         if ctype:
             headers["Content-Type"] = ctype
         req = urllib.request.Request(f"{self.base}/api/v2/{path}", data=data, headers=headers)
-        with self.opener.open(req, timeout=60) as r:
-            return r.read()
+        try:
+            with self.opener.open(req, timeout=60) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            # Session expirée (403) : on se reconnecte une fois et on réessaie
+            if e.code == 403 and self.logged and not path.startswith("auth/"):
+                log.debug("qBittorrent : session expirée, reconnexion")
+                self.logged = False
+                self.login(quiet=True)
+                with self.opener.open(req, timeout=60) as r:
+                    return r.read()
+            raise
 
     def _form(self, path: str, fields: dict[str, str]) -> bytes:
         return self._req(path, urllib.parse.urlencode(fields).encode(), "application/x-www-form-urlencoded")
 
     def login(self, quiet: bool = False) -> None:
+        if self.logged:  # session déjà ouverte : rien à faire (reconnexion auto si elle expire)
+            return
         # qBittorrent < 5.2 répond « Ok. » / « Fails. », les versions récentes une réponse vide.
         try:
             resp = self._form("auth/login", {"username": self.user, "password": self.password})
@@ -310,6 +325,7 @@ class QBit:
             version = self._req("app/version").decode()
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"qBittorrent : accès refusé après connexion (HTTP {e.code})") from e
+        self.logged = True
         (log.debug if quiet else log.info)("qBittorrent %s connecté", version)
 
     def hashes(self) -> set[str]:
@@ -434,13 +450,73 @@ class State:
     def has(self, h: str) -> bool:
         return h in self.seen
 
-    def add(self, h: str, title: str) -> None:
-        self.seen[h] = {"title": title, "added": time.strftime("%Y-%m-%d %H:%M:%S")}
+    def add(self, h: str, title: str, kind: str = "", size: int = 0) -> None:
+        entry = {"title": title, "added": time.strftime("%Y-%m-%d %H:%M:%S")}
+        if kind:
+            entry["type"] = kind
+        if size:
+            entry["size"] = size
+        self.seen[h] = entry
 
     def save(self) -> None:
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.seen, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.path)
+        _save_json(self.path, self.seen)
+
+
+class Tracking:
+    """Petites données de suivi persistantes (donnees/suivi.json) : cross-seed, bilan quotidien."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.data: dict = {}
+        if path.exists():
+            try:
+                self.data = json.loads(path.read_text(encoding="utf-8"))
+            except ValueError:
+                log.warning("%s illisible, il sera recréé", path.name)
+
+    def save(self) -> None:
+        _save_json(self.path, self.data)
+
+
+def _save_json(path: Path, data) -> None:
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(path)  # remplacement atomique : jamais de fichier à moitié écrit
+
+
+# --------------------------------------------------------------------------- types de contenu
+
+# Catégories Torznab de c411 -> type de contenu (sert à la catégorie qBittorrent et au bilan)
+TYPES_EXACTS = {"7020": "ebook", "7030": "bd", "7010": "presse", "7000": "livre", "3030": "livre-audio"}
+TYPES_FAMILLES = {"1": "jeu", "2": "film", "3": "musique", "4": "logiciel", "5": "serie", "6": "adulte",
+                  "7": "livre", "8": "autre"}
+
+
+def qbit_category(kind: str, cfg: dict) -> str:
+    """Catégorie qBittorrent : une par type (c411-ebook, c411-bd…) ou une seule (QBIT_CATEGORY)."""
+    if cfg.get("cat_par_type"):
+        return f"{cfg['cat_prefix']}-{kind}"
+    return cfg["qbit_category"]
+
+
+def content_type(category: str, title: str = "") -> str:
+    """Type de contenu d'après la catégorie Torznab (ex : 7030 -> bd, 2030 -> film)."""
+    category = (category or "").strip()
+    if category in TYPES_EXACTS:
+        return TYPES_EXACTS[category]
+    if category[:1] in TYPES_FAMILLES:
+        return TYPES_FAMILLES[category[:1]]
+    return guess_type(title) if title else "autre"
+
+
+def guess_type(title: str) -> str:
+    """Devine le type d'après le titre, pour les torrents ajoutés avant la v1.3 (catégorie inconnue)."""
+    t = title.lower()
+    if re.search(r"(?<![a-z0-9])(cbz|cbr)(?![a-z0-9])", t):
+        return "bd"
+    if re.search(r"(?<![a-z0-9])(mp3|m4b|m4a|kbps)(?![a-z0-9])", t):
+        return "livre-audio"
+    return "ebook"
 
 
 # --------------------------------------------------------------------------- logique
@@ -475,8 +551,6 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
         routine("Ratio actuel : %.2f", ratio)
 
     qbit.login(quiet=bool(args.boucle))
-    if not args.dry_run:
-        qbit.ensure_category(cfg["qbit_category"], cfg["qbit_savepath"])
     in_client = qbit.hashes()
     free = qbit.free_space()
     min_free = cfg["min_free_gb"] * 1024**3
@@ -514,10 +588,12 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
                 log.info("ignoré (ratio après téléchargement : %.3f) : %s", projected, it["title"])
                 continue
 
+        kind = content_type(it["category"], it["title"])
+        category = qbit_category(kind, cfg)
         if args.dry_run:
-            log.info("[dry-run] + %s (%s, %d complétés, %d seeders, %s leechers)",
+            log.info("[dry-run] + %s (%s, %d complétés, %d seeders, %s leechers) -> %s",
                      it["title"], _human(it["size"]), it["completed"], it["seeders"],
-                     it["leechers"] if it["leechers"] >= 0 else "?")
+                     it["leechers"] if it["leechers"] >= 0 else "?", category)
             added += 1
             total_bytes += it["size"]
             counted_bytes += counted
@@ -528,13 +604,17 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
             h = h or infohash_of(data)
             if h in in_client or state.has(h):
                 continue
-            qbit.add(f"{h}.torrent", data, cfg["qbit_category"], cfg["qbit_tags"],
+            known = ctx.setdefault("categories_ok", set())
+            if category not in known:  # créée une fois par catégorie (409 si elle existe déjà)
+                qbit.ensure_category(category, cfg["qbit_savepath"])
+                known.add(category)
+            qbit.add(f"{h}.torrent", data, category, cfg["qbit_tags"],
                      cfg["qbit_savepath"], cfg["qbit_paused"])
         except Exception as e:  # on continue avec les suivants
             log.error("Échec pour %s : %s", it["title"], e)
             continue
 
-        state.add(h, it["title"])
+        state.add(h, it["title"], kind, it["size"])
         state.save()
         in_client.add(h)
         if budget_bytes is not None:
@@ -664,8 +744,8 @@ def cleanup(args, cfg: dict, ctx: dict) -> int:
     action = cfg["cleanup_action"]
     qbit.login(quiet=True)
     everything = qbit.torrents()
-    scope = [t for t in everything if cfg["cleanup_tag"] in [x.strip() for x in t.get("tags", "").split(",")]]
-    log.debug("Nettoyage : vérification de %d torrents (tag « %s »)", len(scope), cfg["cleanup_tag"])
+    scope = [t for t in everything if cfg["own_tag"] in [x.strip() for x in t.get("tags", "").split(",")]]
+    log.debug("Nettoyage : vérification de %d torrents (tag « %s »)", len(scope), cfg["own_tag"])
 
     done = 0
     for t in scope:
@@ -714,6 +794,15 @@ def cleanup(args, cfg: dict, ctx: dict) -> int:
     return done
 
 
+def _safe(func, *args):
+    """Une fonction annexe qui échoue ne doit jamais arrêter le programme."""
+    try:
+        return func(*args)
+    except Exception as e:
+        log.error("%s interrompu : %s", func.__name__, e)
+        return None
+
+
 def maybe_cleanup(args, cfg: dict, ctx: dict, force: bool = False) -> None:
     if not cfg["cleanup"] and not force:
         return
@@ -726,6 +815,168 @@ def maybe_cleanup(args, cfg: dict, ctx: dict, force: bool = False) -> None:
         (log.info if n or not args.boucle else log.debug)("Nettoyage terminé : %d torrent(s) supprimé(s) de c411", n)
     except Exception as e:
         log.error("Nettoyage interrompu : %s", e)
+
+
+# --------------------------------------------------------------------------- cross-seed
+
+def maybe_crossseed(args, cfg: dict, ctx: dict) -> int:
+    """Prévient cross-seed dès qu'un torrent ajouté par le programme a fini de télécharger.
+
+    cross-seed cherche alors tout de suite la même release sur les autres trackers, au lieu
+    d'attendre son prochain passage : on y arrive parmi les premiers seeders.
+    """
+    if not cfg["cs_url"]:
+        return 0
+    tracking = ctx["tracking"]
+    sent = set(tracking.data.get("crossseed_envoyes", []))
+    qbit = ctx["qbit"]
+    qbit.login(quiet=True)
+    complete = [t["hash"].lower() for t in qbit.torrents(tag=cfg["own_tag"]) if t.get("progress", 0) >= 1]
+
+    if not tracking.data.get("crossseed_init"):
+        # Premier lancement : les torrents déjà terminés sont couverts par la recherche quotidienne de
+        # cross-seed, on ne les lui renvoie pas tous d'un coup
+        if args.dry_run:
+            log.info("[dry-run] cross-seed : %d torrents déjà terminés seraient marqués comme couverts",
+                     len(complete))
+            return 0
+        tracking.data["crossseed_init"] = True
+        tracking.data["crossseed_envoyes"] = sorted(set(complete) | sent)
+        tracking.save()
+        log.info("cross-seed : activé. %d torrents déjà terminés ne seront pas renvoyés", len(complete))
+        return 0
+
+    todo = [h for h in complete if h not in sent]
+    done = 0
+    for h in todo:
+        if args.dry_run:
+            log.info("[dry-run] cross-seed serait prévenu pour %s", h[:8])
+            continue
+        try:
+            _crossseed_webhook(cfg, h)
+        except urllib.error.HTTPError as e:
+            log.error("cross-seed : refusé pour %s (HTTP %d%s)", h[:8], e.code,
+                      " : vérifie CROSS_SEED_API_KEY" if e.code == 401 else "")
+            if e.code == 401:
+                break
+            continue
+        except Exception as e:  # cross-seed arrêté ou injoignable : on réessaiera au prochain passage
+            if not ctx.get("cs_down"):
+                log.warning("cross-seed injoignable (%s) : on réessaiera plus tard", e)
+            ctx["cs_down"] = True
+            break
+        ctx["cs_down"] = False
+        sent.add(h)
+        done += 1
+    if done:
+        tracking.data["crossseed_envoyes"] = sorted(sent)
+        tracking.save()
+        log.info("cross-seed : %d torrent(s) terminé(s) envoyé(s) pour recherche immédiate", done)
+    return done
+
+
+def _crossseed_webhook(cfg: dict, infohash: str) -> None:
+    req = urllib.request.Request(
+        f"{cfg['cs_url'].rstrip('/')}/api/webhook",
+        data=urllib.parse.urlencode({"infoHash": infohash}).encode(),
+        headers={"X-Api-Key": cfg["cs_key"], "Content-Type": "application/x-www-form-urlencoded",
+                 "User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        r.read()
+
+
+# --------------------------------------------------------------------------- bilan quotidien
+
+def build_report(cfg: dict, ctx: dict) -> tuple[str, dict]:
+    """Bilan depuis le dernier relevé. Retourne (texte au format Markdown simple, nouveau relevé)."""
+    qbit, state, tracking = ctx["qbit"], ctx["state"], ctx["tracking"]
+    qbit.login(quiet=True)
+    torrents = qbit.torrents(tag=cfg["own_tag"])
+    snap = tracking.data.get("bilan") or {}
+    prev_up, prev_down = snap.get("uploaded", {}), snap.get("downloaded", {})
+    since = snap.get("time")
+
+    up_delta = down_delta = 0
+    by_type: dict[str, list] = {}
+    top = []
+    for t in torrents:
+        h = t["hash"].lower()
+        du = max(int(t.get("uploaded", 0)) - int(prev_up.get(h, 0)), 0)
+        dd = max(int(t.get("downloaded", 0)) - int(prev_down.get(h, 0)), 0)
+        up_delta += du
+        down_delta += dd
+        if du:
+            top.append((du, t["name"]))
+        kind = state.seen.get(h, {}).get("type") or guess_type(t["name"])
+        agg = by_type.setdefault(kind, [0, 0, 0])  # [nombre, taille, envoyé depuis l'ajout]
+        agg[0] += 1
+        agg[1] += int(t.get("size", 0))
+        agg[2] += int(t.get("uploaded", 0))
+
+    added = 0
+    for entry in state.seen.values():
+        try:
+            when = time.mktime(time.strptime(entry.get("added", ""), "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            continue
+        if since is None or when >= since:
+            added += 1
+
+    period = "depuis le " + time.strftime("%d/%m à %H:%M", time.localtime(since)) if since else "depuis le début"
+    lines = [f"📊 **Bilan c411-autodl** ({period})",
+             f"• {added} torrent(s) ajouté(s) · {_human(down_delta)} téléchargés · **{_human(up_delta)} envoyés**"]
+
+    new_snap = {"time": time.time(),
+                "uploaded": {t["hash"].lower(): int(t.get("uploaded", 0)) for t in torrents},
+                "downloaded": {t["hash"].lower(): int(t.get("downloaded", 0)) for t in torrents}}
+    if cfg["profile_key"]:
+        try:
+            ratio, _, _, _ = ctx["profile"].ratio()
+            new_snap["ratio"] = ratio
+            evolution = f" ({ratio - snap['ratio']:+.2f})" if "ratio" in snap else ""
+            lines.append(f"• Ratio c411 : {ratio:.2f}{evolution}")
+        except Exception as e:
+            log.warning("Bilan : ratio indisponible (%s)", e)
+
+    if by_type:
+        lines.append("**Rendement par type** (envoyé ÷ taille, depuis l'ajout) :")
+        ranked = sorted(by_type.items(), key=lambda kv: kv[1][2] / kv[1][1] if kv[1][1] else 0, reverse=True)
+        for kind, (n, size, up) in ranked:
+            lines.append(f"• {kind} : ×{(up / size if size else 0):.2f} ({n} torrent(s), {_human(up)} envoyés)")
+    if top:
+        lines.append("**Ce qui a le plus envoyé** :")
+        for du, name in sorted(top, reverse=True)[:3]:
+            lines.append(f"• {name[:80]} — {_human(du)}")
+    return "\n".join(lines), new_snap
+
+
+def maybe_report(args, cfg: dict, ctx: dict, force: bool = False) -> None:
+    """Bilan une fois par jour à BILAN_HEURE (ou tout de suite avec --bilan, sans changer le relevé)."""
+    if not cfg["bilan"] and not force:
+        return
+    tracking = ctx["tracking"]
+    today = time.strftime("%Y-%m-%d")
+    if not force and (time.localtime().tm_hour < cfg["bilan_heure"] or tracking.data.get("bilan_date") == today):
+        return
+    try:
+        if not force and not tracking.data.get("bilan"):
+            # Tout premier relevé : rien à comparer encore, le premier bilan arrivera demain
+            _, snap = build_report(cfg, ctx)
+            tracking.data.update(bilan=snap, bilan_date=today)
+            tracking.save()
+            log.info("Bilan : premier relevé enregistré, premier bilan demain vers %d h", cfg["bilan_heure"])
+            return
+        text, snap = build_report(cfg, ctx)
+    except Exception as e:
+        log.error("Bilan impossible : %s", e)
+        return
+    for line in text.replace("**", "").splitlines():
+        log.info("%s", line)
+    if ctx.get("notifier"):
+        ctx["notifier"].send(text)
+    if not force:
+        tracking.data.update(bilan=snap, bilan_date=today)
+        tracking.save()
 
 
 def _finish(added: int, skipped: int, total_bytes: int, args,
@@ -767,6 +1018,9 @@ def main() -> None:
     p.add_argument("--test-notif", action="store_true", help="envoie une notification de test et quitte")
     p.add_argument("--nettoyage", action="store_true",
                    help="vérifie tout de suite les torrents supprimés de c411, puis quitte (combinable avec --dry-run)")
+    p.add_argument("--bilan", action="store_true",
+                   help="affiche (et envoie en notification) le bilan tout de suite, puis quitte")
+    p.add_argument("--version", action="version", version=f"c411-autodl {__version__}")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args()
 
@@ -817,12 +1071,24 @@ def main() -> None:
         # Nettoyage des torrents supprimés de c411 (désactivé par défaut : il supprime des fichiers)
         "cleanup": env_bool("NETTOYAGE_SUPPRIMES", False),
         "cleanup_action": env("NETTOYAGE_ACTION", "fichiers").strip().lower(),
-        "cleanup_tag": env("NETTOYAGE_TAG", "autodl").strip(),
+        # Tag des torrents gérés par le programme (nettoyage, cross-seed, bilan)
+        "own_tag": env("NETTOYAGE_TAG", "autodl").strip(),
         "cleanup_minutes": env_int("NETTOYAGE_MINUTES", 60),
+        # Une catégorie qBittorrent par type (c411-ebook, c411-bd, c411-presse…)
+        "cat_par_type": env_bool("QBIT_CATEGORIE_PAR_TYPE", False),
+        "cat_prefix": env("QBIT_CATEGORIE_PREFIXE", "c411").strip() or "c411",
+        # Déclenchement de cross-seed à la fin de chaque téléchargement
+        "cs_url": env("CROSS_SEED_URL", "").strip(),
+        "cs_key": env("CROSS_SEED_API_KEY", "").strip(),
+        # Bilan quotidien
+        "bilan": env_bool("BILAN_QUOTIDIEN", False),
+        "bilan_heure": env_int("BILAN_HEURE", 8),
     }
+    if cfg["cs_url"] and not cfg["cs_key"]:
+        sys.exit("CROSS_SEED_URL est rempli : ajoute aussi CROSS_SEED_API_KEY (commande : cross-seed api-key)")
     if cfg["cleanup_action"] not in ("fichiers", "torrent", "pause"):
         sys.exit("NETTOYAGE_ACTION doit valoir fichiers, torrent ou pause")
-    if not cfg["cleanup_tag"]:
+    if not cfg["own_tag"]:
         sys.exit("NETTOYAGE_TAG ne peut pas être vide (sinon tous les torrents seraient concernés)")
 
     if cfg["min_ratio"] > 0 and not cfg["profile_key"]:
@@ -834,6 +1100,7 @@ def main() -> None:
         "profile": C411(cfg["c411_url"], cfg["profile_key"], 0),
         "qbit": QBit(cfg["qbit_url"], cfg["qbit_user"], cfg["qbit_pass"]),
         "state": State(DATA / "state.json"),
+        "tracking": Tracking(DATA / "suivi.json"),
     }
     notifier = Notifier(env("DISCORD_WEBHOOK_URL"), env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID"),
                         env_bool("NOTIF_PAUSES", True))
@@ -849,6 +1116,9 @@ def main() -> None:
     if args.nettoyage:
         maybe_cleanup(args, cfg, ctx, force=True)
         return
+    if args.bilan:
+        maybe_report(args, cfg, ctx, force=True)
+        return
 
     if not args.boucle:
         try:
@@ -857,12 +1127,20 @@ def main() -> None:
             log.error("Passage interrompu : %s", e)
             sys.exit(1)
         maybe_cleanup(args, cfg, ctx)
+        _safe(maybe_crossseed, args, cfg, ctx)
+        maybe_report(args, cfg, ctx)
         return
 
+    log.info("c411-autodl %s", __version__)
     log.info("Démarrage en continu : un passage toutes les %d s (ratio minimum %.2f%s%s). Ctrl+C pour arrêter.",
              args.boucle, cfg["min_ratio"], ", notifications actives" if ctx.get("notifier") else "",
              f", nettoyage des supprimés toutes les {cfg['cleanup_minutes']} min ({cfg['cleanup_action']})"
              if cfg["cleanup"] else "")
+    extras = [name for name, on in (("catégorie par type", cfg["cat_par_type"]),
+                                    ("cross-seed immédiat", cfg["cs_url"]),
+                                    (f"bilan quotidien à {cfg['bilan_heure']} h", cfg["bilan"])) if on]
+    if extras:
+        log.info("Options actives : %s", ", ".join(extras))
     total_added = errors = 0
     last_beat = time.monotonic()
     try:
@@ -876,8 +1154,10 @@ def main() -> None:
                 # On signale la première erreur, puis une sur dix pour ne pas inonder le journal
                 if errors == 1 or errors % 10 == 0:
                     log.error("Passage interrompu (%d erreur(s) d'affilée) : %s", errors, e)
-            # Indépendant du ratio : tourne même quand les ajouts sont en pause
+            # Indépendants du ratio : tournent même quand les ajouts sont en pause
             maybe_cleanup(args, cfg, ctx)
+            _safe(maybe_crossseed, args, cfg, ctx)
+            maybe_report(args, cfg, ctx)
             if time.monotonic() - last_beat >= 3600:  # signe de vie toutes les heures
                 ratio = ctx.get("last_ratio")
                 log.info("Toujours actif : %d torrents ajoutés depuis le démarrage%s", total_added,
