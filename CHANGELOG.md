@@ -1,5 +1,14 @@
 # Historique des versions
 
+## v2.1.0 — 2026-11-05
+
+**Nouvel onglet « Relevés »** dans l'interface web :
+- chaque jour à `BILAN_HEURE` (8 h par défaut), le programme relève ton **ratio**, ton **total envoyé** et ton **total reçu** sur c411, même si le bilan quotidien est désactivé. Le tout premier relevé est pris dès le démarrage ;
+- **comparaison avec la veille** : écart et pourcentage, ▲ en hausse, ▼ en baisse. Une hausse du reçu, qui fait baisser le ratio, est signalée en orange ;
+- **courbe du ratio** sur 30 jours, **barres de l'envoyé** de chaque journée, et tout l'historique ;
+- relevés gardés dans `donnees/releves.json`, environ trois ans, quelques octets par jour. Il faut la clé API Profil ; rien n'est enregistré en essai à blanc ;
+- 123 tests (8 de plus).
+
 ## v2.0.1 — 2026-11-05
 
 Corrections d'affichage du tableau de bord :

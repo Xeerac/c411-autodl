@@ -381,6 +381,7 @@ Depuis la v2.0, c411-autodl a une **interface web** : un tableau de bord pour su
 - **Tableau de bord** : l'état du programme (actif, en pause, freeleech, en panne), ton ratio avec une jauge, le volume envoyé par tes torrents, le dernier et le prochain passage. On y voit aussi l'état de qBittorrent, de cross-seed et de Prowlarr (ces deux derniers seulement s'ils sont configurés), les **derniers ajouts** avec ce qu'ils ont déjà envoyé, et le **rendement par type**.
 - **Actions** : passage immédiat, pause et reprise, essai à blanc, bilan, aperçu du nettoyage et aperçu du rangement. Les aperçus **ne modifient jamais rien**.
 - **Configuration** : tous les réglages, rangés par thème, avec une explication sous chaque champ. Un bouton **« Tester »** vérifie chaque service (clés c411, qBittorrent, cross-seed, Prowlarr, notifications) **avant même d'enregistrer**. Les changements sont vérifiés, puis pris en compte **sans redémarrage**.
+- **Relevés** : chaque matin, ton ratio, ton total envoyé et ton total reçu sur c411 sont relevés et **comparés à la veille** (écart et pourcentage, ▲ en hausse, ▼ en baisse), avec la courbe du ratio jour après jour, l'envoyé de chaque journée et tout l'historique.
 - **Journal en direct**, avec filtres (ajouts, problèmes, freeleech, nettoyage, cross-seed) et recherche.
 - Un affichage adapté au **téléphone**, avec les onglets en bas de l'écran.
 
@@ -612,7 +613,7 @@ Au premier lancement, les torrents déjà terminés ne sont **pas** renvoyés : 
 | Réglage | Défaut | Description |
 |---|---|---|
 | `BILAN_QUOTIDIEN` | `false` | `true` = un bilan par jour, dans le journal et sur Discord/Telegram |
-| `BILAN_HEURE` | `8` | Heure d'envoi (0 à 23) |
+| `BILAN_HEURE` | `8` | Heure d'envoi (0 à 23). C'est aussi l'heure du relevé quotidien de l'onglet « Relevés » |
 
 Exemple :
 
@@ -628,7 +629,7 @@ Rendement par type (envoyé ÷ taille, depuis l'ajout) :
 
 Le **rendement** indique combien chaque type de contenu a renvoyé par rapport à sa taille : ×7 veut dire qu'en moyenne, chaque torrent a été envoyé 7 fois. Ça permet de voir quelles catégories et quels réglages valent le coup.
 
-Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une journée à comparer. Pour en voir un tout de suite : `python c411_autodl.py --bilan`.
+Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une journée à comparer. Indépendamment du bilan, l'onglet **Relevés** de l'interface note chaque jour à cette heure ton ratio, ton envoyé et ton reçu. Il faut pour ça la clé API Profil, et le premier relevé est pris dès le démarrage. Pour en voir un tout de suite : `python c411_autodl.py --bilan`.
 
 ### Notifications
 
@@ -815,7 +816,7 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 | `LICENSE` | Licence MIT |
 | `CHANGELOG.md` | Historique des versions |
 | `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification. Ceux de l'interface demandent `requirements-interface.txt` et `httpx` |
-| `donnees/` | Créé au premier lancement : historique, journal et configuration de l'interface, non versionnés |
+| `donnees/` | Créé au premier lancement : historique des ajouts, relevés quotidiens (`releves.json`), journal et configuration de l'interface, non versionnés |
 
 ---
 
