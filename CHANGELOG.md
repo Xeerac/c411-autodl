@@ -1,5 +1,15 @@
 # Historique des versions
 
+## v1.5.1 — 2026-11-05
+
+Mise à jour de la documentation :
+- **Prérequis** : Python 3.10+ **ou** Docker, qui ne demande pas Python.
+- La section **Linux / VPS** présente les deux façons de tourner 24 h/24 (systemd ou Docker) et le passage de l'une à l'autre avec `migrer_vers_docker.sh`.
+- **Mode freeleech** : conseil de prudence pour un premier freeleech (réglages modestes, vérification dans le bilan).
+- **FAQ Docker** : « Permission denied » sur `donnees/` ou `.env`, et adresses `localhost` injoignables depuis un conteneur.
+- **Sécurité** : cross-seed parmi les services contactés, et conteneur non root sans données personnelles dans l'image.
+- Réglage `PAGE_SIZE` documenté, sommaire complété.
+
 ## v1.5.0 — 2026-11-05
 
 - **Docker** : `Dockerfile` (image légère, Python seul, utilisateur non root, fuseaux horaires inclus pour `BILAN_HEURE`) et `docker-compose.yml` d'exemple. La configuration (`.env`) et les données (`donnees/`) sont montées, rien de personnel dans l'image. Les commandes ponctuelles passent par `docker compose run --rm c411-autodl …`.

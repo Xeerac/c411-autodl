@@ -48,6 +48,9 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 7. [Mettre à jour](#mettre-à-jour)
 8. [Dépannage / FAQ](#dépannage--faq)
 9. [Sécurité](#sécurité)
+10. [Contenu du dépôt](#contenu-du-dépôt)
+11. [Contribuer](#contribuer)
+12. [Licence](#licence)
 
 ---
 
@@ -74,9 +77,11 @@ Il garde une trace de tout ce qu'il a ajouté, pour ne jamais ajouter deux fois 
 
 - Un **compte c411**.
 - Un **qBittorrent avec la WebUI activée**, sur une seedbox (Seedhost, Ultra.cc, etc.) ou sur ta propre machine. Testé avec la version 5.3 ; les versions 4.x récentes devraient aussi fonctionner.
-- **Python 3.10 ou plus récent** sur la machine qui fera tourner le programme :
-  - **Windows** : télécharge Python sur [python.org](https://www.python.org/downloads/). Pendant l'installation, **coche « Add python.exe to PATH »**.
-  - **Debian / Ubuntu** : Python 3 est déjà installé. Sinon : `sudo apt install python3`.
+- Sur la machine qui fera tourner le programme, **au choix** :
+  - **Python 3.10 ou plus récent**.
+    - **Windows** : télécharge Python sur [python.org](https://www.python.org/downloads/). Pendant l'installation, **coche « Add python.exe to PATH »**.
+    - **Debian / Ubuntu** : Python 3 est déjà installé. Sinon : `sudo apt install python3`.
+  - **Docker** : Python n'est alors pas nécessaire, l'image le contient (voir [Avec Docker](#avec-docker)).
 
 Le programme n'a **pas besoin d'être installé sur la seedbox**. Il peut tourner sur ton PC, sur un Raspberry Pi ou sur un petit VPS, tant que cette machine peut joindre c411 et la WebUI de qBittorrent.
 
@@ -246,6 +251,8 @@ Le PC doit rester allumé et ne pas se mettre en veille. Pour du vrai 24 h/24, u
 ### Sur un serveur Linux / VPS (Debian, Ubuntu…)
 
 Prévu pour Debian 13. Toute distribution qui utilise systemd devrait fonctionner (Ubuntu, Raspberry Pi OS…).
+
+Deux façons de le faire tourner 24 h/24 : un **service systemd**, décrit ci-dessous, ou un **conteneur Docker** (voir [Avec Docker](#avec-docker)), pratique si tu utilises déjà Docker pour cross-seed, Prowlarr… Tu peux passer de l'un à l'autre à tout moment avec `migrer_vers_docker.sh`.
 
 **1. Mettre le programme sur le serveur.** Directement depuis le serveur :
 
@@ -417,6 +424,7 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | Réglage | Défaut | Description |
 |---|---|---|
 | `PAGES` | `2` | Pages lues à chaque passage, avec 100 torrents par page (6 au maximum) |
+| `PAGE_SIZE` | `100` | Nombre de torrents par page. 100 est le maximum accepté par c411 |
 | `MAX_PER_RUN` | `50` | Nombre maximum de torrents ajoutés par passage |
 | `MIN_FREE_GB` | `20` | Espace disque à garder libre sur la seedbox, en Go |
 | `BOUCLE_SECONDES` | `0` | Intervalle du mode continu si tu lances le programme sans `--boucle` (`0` = un seul passage) |
@@ -494,6 +502,8 @@ Pendant un **freeleech sur ton compte** (événement du site, fenêtre freeleech
 | `FREELEECH_IGNORER_FORMATS` | `true` | Ignore `FORMATS` pendant le freeleech, sinon `FORMATS=epub,cbz` écarterait films et séries |
 
 Tous tes autres filtres (`MAX_SEEDERS`, `MIN_COMPLETED`, `MIN_FREE_GB`…) restent actifs, et `MIN_FREE_GB` protège toujours l'espace disque de la seedbox.
+
+> 💡 **Conseil de prudence :** pendant un freeleech, le programme compte les téléchargements comme gratuits, d'après ce qu'indique ton profil c411. Pour ton premier freeleech, commence avec des réglages modestes, par exemple `FREELEECH_CATEGORIES` vide, `FREELEECH_MAX_PAR_PASSAGE=30` et `FREELEECH_TAILLE_MAX=5Go`. Vérifie ensuite dans le bilan du lendemain que ton volume **reçu** n'a pas augmenté. Une fois que c'est confirmé, tu peux ouvrir les films et les séries.
 
 ### Alerte en cas de panne
 
@@ -647,10 +657,25 @@ c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme v
 </details>
 
 <details>
+<summary><b>Docker : « Permission denied » sur <code>donnees/</code> ou <code>.env</code></b></summary>
+
+Le conteneur tourne avec l'utilisateur indiqué par la ligne `user:` du `docker-compose.yml` (1000 par défaut), et non en root. Ce même utilisateur doit pouvoir lire `.env` et écrire dans `donnees/` : `sudo chown -R 1000:1000 donnees .env`. Tu peux aussi mettre ton propre identifiant dans `user:` (commande `id`).
+</details>
+
+<details>
+<summary><b>Docker : qBittorrent ou cross-seed injoignable alors que ça marchait avant</b></summary>
+
+Dans un conteneur, `localhost` désigne le conteneur lui-même, pas ta machine. Deux solutions :
+- utiliser le **nom du conteneur** visé, s'il est dans le même `docker-compose.yml` : `CROSS_SEED_URL=http://cross-seed:2468`, `QBIT_URL=http://qbittorrent:8080` ;
+- ou faire tourner c411-autodl **sur le réseau de la machine** avec `network_mode: host`, ce que fait `migrer_vers_docker.sh`. Les adresses en `localhost` restent alors valables.
+</details>
+
+<details>
 <summary><b>Où sont les journaux ?</b></summary>
 
 - Dans `donnees/c411_autodl.log`, limité à 4 fichiers de 5 Mo. L'historique des torrents ajoutés est dans `donnees/state.json`.
 - Avec le service Linux, tu peux aussi utiliser `journalctl -u c411-autodl`.
+- Avec Docker : `docker compose logs -f c411-autodl`.
 - En mode continu, le journal ne note que l'essentiel : ajouts, pauses et reprises liées au ratio, erreurs, et un signe de vie toutes les heures. Ajoute `-v` pour tout voir.
 </details>
 
@@ -661,7 +686,8 @@ c411 met son flux en cache pendant 5 minutes : c'est pour ça que le programme v
 - Le fichier **`.env` contient tes clés et tes mots de passe : ne le partage jamais**, ni en capture d'écran ni dans un message d'aide. Il est exclu de Git par le `.gitignore`.
 - Donne à chaque clé API **le minimum de droits** nécessaire (voir l'étape 1). Si une clé fuit, supprime-la sur c411 et crées-en une nouvelle.
 - Ta **passkey c411** (dans l'URL d'annonce) n'est pas utilisée par ce programme : ne la mets nulle part.
-- Le programme ne contacte que c411, ta WebUI qBittorrent et, si tu les as configurés, Discord ou Telegram.
+- Le programme ne contacte que c411, ta WebUI qBittorrent et, si tu les as configurés, cross-seed, Discord ou Telegram.
+- Avec Docker, le programme tourne avec un **utilisateur non root**, et l'image ne contient ni ta configuration ni tes données : elles sont montées au lancement.
 
 ---
 

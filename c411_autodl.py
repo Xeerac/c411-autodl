@@ -34,7 +34,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "donnees"  # historique des ajouts et journal
