@@ -16,7 +16,9 @@ from .commun import __version__, log
 from .contexte import build_context
 from .moteur import _safe, maybe_cleanup, maybe_crossseed, maybe_report, run_once, watchdog
 
-ACTIONS = ("passage", "pause", "reprise", "arret")
+ACTIONS = ("passage", "pause", "reprise", "recharger", "arret")
+# Informations d'état gardées quand la configuration change
+KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "down_since", "categories_ok")
 
 
 class Engine:
@@ -129,15 +131,34 @@ class Engine:
         self._thread = threading.Thread(target=self._loop, name="moteur", daemon=True)
         self._thread.start()
 
-    def submit(self, action: str) -> None:
+    def submit(self, action: str, payload=None) -> None:
         """Demande une action ; elle est exécutée par le thread du moteur (jamais deux opérations à la fois)."""
         if action not in ACTIONS:
             raise ValueError(f"action inconnue : {action}")
-        self._actions.put(action)
+        self._actions.put((action, payload))
+
+    def reload(self, cfg: dict) -> None:
+        """Nouvelle configuration, appliquée entre deux passages (jamais au milieu d'un passage)."""
+        if self._thread and self._thread.is_alive():
+            self.submit("recharger", cfg)
+        else:
+            self.apply(cfg)
+
+    def apply(self, cfg: dict) -> None:
+        kept = {k: self.ctx[k] for k in KEEP_ON_RELOAD if k in self.ctx}
+        self.cfg = cfg
+        self.ctx = build_context(cfg, dry_run=self.read_only)
+        self.ctx.update(kept)
+        self.args.pages = cfg["pages"]
+        if cfg["boucle"]:
+            self.interval = max(int(cfg["boucle"]), 1)
+            self.args.boucle = self.interval
+        self._set(interval=self.interval)
+        log.info("Nouvelle configuration appliquée")
 
     def stop(self, timeout: float = 30) -> None:
         self._stop.set()
-        self._actions.put("arret")
+        self._actions.put(("arret", None))
         if self._thread:
             self._thread.join(timeout)
         log.info("Moteur arrêté : %d torrents ajoutés depuis le démarrage", self.total_added)
@@ -146,11 +167,20 @@ class Engine:
         wait = 0.0
         while not self._stop.is_set():
             try:
-                action = self._actions.get(timeout=wait) if wait > 0 else None
+                action, payload = self._actions.get(timeout=wait) if wait > 0 else (None, None)
             except queue.Empty:
-                action = None
+                action, payload = None, None
             if action == "arret" or self._stop.is_set():
                 break
+            if action == "recharger":
+                self.apply(payload)
+                # le prochain passage garde son heure prévue
+                next_at = self._status.get("next_pass_at")
+                wait = max(next_at - time.time(), 0.0) if next_at else (3600 if self.paused else 0.0)
+                if wait == 0 and not self.paused:
+                    action = None
+                else:
+                    continue
             if action == "pause":
                 self.paused = True
                 log.info("Mis en pause depuis l'interface")

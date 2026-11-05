@@ -1,0 +1,50 @@
+{% extends "_app_layout.html" %}
+{% block title %}Configuration · c411-autodl{% endblock %}
+{% block nav_config %}active{% endblock %}
+{% block content %}
+<div class="config">
+  <aside class="config-nav" aria-label="Groupes de réglages">
+    {% for gid, (title, _) in groups.items() %}
+      <a href="/configuration/{{ gid }}" class="{{ 'active' if gid == groupe else '' }}">{{ title }}</a>
+    {% endfor %}
+    <p class="config-source muted">Enregistré dans <code>donnees/{{ source }}</code></p>
+  </aside>
+
+  <section class="card config-panel">
+    <header class="config-head">
+      <div>
+        <h1>{{ groups[groupe][0] }}</h1>
+        <p class="muted">{{ groups[groupe][1] }}</p>
+      </div>
+    </header>
+
+    {% if saved %}<div class="alert alert-ok" role="status">Enregistré. Pris en compte au prochain passage, sans redémarrage.</div>{% endif %}
+    {% if errors %}
+      <div class="alert alert-error" role="alert"><strong>Rien n'a été enregistré :</strong>
+        <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    {% endif %}
+
+    <form method="post" action="/configuration/{{ groupe }}" class="form" id="config-form" data-groupe="{{ groupe }}" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% set basic = fields | rejectattr('advanced') | list %}
+      {% set advanced = fields | selectattr('advanced') | list %}
+      {% for f in basic %}{% include "_champ.html" %}{% endfor %}
+      {% if advanced %}
+      <details class="advanced" {% if advanced | selectattr('error') | list %}open{% endif %}>
+        <summary>Réglages avancés <span class="muted">({{ advanced | length }})</span></summary>
+        {% for f in advanced %}{% include "_champ.html" %}{% endfor %}
+      </details>
+      {% endif %}
+
+      <div class="config-actions">
+        <button class="btn btn-primary" type="submit">Enregistrer</button>
+        {% for s in services %}
+          <button class="btn" type="button" data-test="{{ s.id }}">{{ s.label }}</button>
+        {% endfor %}
+      </div>
+      <div class="test-results" id="test-results" aria-live="polite"></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='config.js') }}" defer></script>{% endblock %}

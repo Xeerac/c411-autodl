@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -48,11 +49,12 @@ def password_problem(password: str, confirmation: str) -> str | None:
 class Auth:
     def __init__(self, path: Path | None = None):
         self.path = path or DATA / "interface.json"
+        self.code_path = self.path.with_name("code-installation.txt")
         self._lock = threading.Lock()
         self._sessions: dict[str, dict] = {}
         self._failures: dict[str, list[float]] = {}
         self._locked_until: dict[str, float] = {}
-        self.setup_code = None if self.has_admin() else self._new_setup_code()
+        self.setup_code = None if self.has_admin() else self._setup_code()
 
     # ------------------------------------------------------------------ compte administrateur
 
@@ -62,10 +64,23 @@ class Auth:
     def _admin(self) -> dict:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
-    def _new_setup_code(self) -> str:
-        code = "-".join(secrets.token_hex(2).upper() for _ in range(3))  # ex : 4F2A-91C0-7B3E
+    def _setup_code(self) -> str:
+        """Code d'installation : gardé dans donnees/code-installation.txt jusqu'à la création du compte,
+        pour qu'il ne change pas à chaque redémarrage."""
+        code = ""
+        if self.code_path.exists():
+            code = self.code_path.read_text(encoding="utf-8").strip().upper()
+        if not re.fullmatch(r"[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}", code):
+            code = "-".join(secrets.token_hex(2).upper() for _ in range(3))  # ex : 4F2A-91C0-7B3E
+            self.code_path.parent.mkdir(parents=True, exist_ok=True)
+            self.code_path.write_text(code + "\n", encoding="utf-8")
+            try:
+                os.chmod(self.code_path, 0o600)
+            except OSError:
+                pass
         log.warning("Premier lancement de l'interface : code d'installation %s "
-                    "(demandé pour créer ton compte, valable jusqu'au prochain redémarrage)", code)
+                    "(aussi enregistré dans donnees/%s, supprimé une fois ton compte créé)",
+                    code, self.code_path.name)
         return code
 
     def create_admin(self, user: str, password: str, code: str) -> str | None:
@@ -87,6 +102,7 @@ class Auth:
             except OSError:
                 pass
             self.setup_code = None
+            self.code_path.unlink(missing_ok=True)  # le code ne sert plus à rien
             log.info("Compte administrateur de l'interface créé (%s)", user)
             return None
 

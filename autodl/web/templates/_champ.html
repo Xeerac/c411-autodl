@@ -1,0 +1,34 @@
+{# Un champ de configuration, généré à partir du schéma. Variable : f #}
+<div class="field {{ 'has-error' if f.error else '' }} kind-{{ f.kind }}">
+  {% if f.kind == 'bool' %}
+    <label class="switch">
+      <input type="checkbox" name="{{ f.env }}" {% if f.checked %}checked{% endif %}>
+      <span class="switch-track" aria-hidden="true"></span>
+      <span class="switch-label">{{ f.label }}</span>
+    </label>
+  {% else %}
+    <label for="f-{{ f.env }}"><span>{{ f.label }}{% if f.required %} <em class="req" title="obligatoire">*</em>{% endif %}</span></label>
+    {% if f.kind == 'choice' %}
+      <select id="f-{{ f.env }}" name="{{ f.env }}">
+        {% for c in f.choices %}<option value="{{ c }}" {% if (f.value or f.placeholder) == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    {% elif f.kind == 'secret' %}
+      <div class="secret">
+        <input id="f-{{ f.env }}" name="{{ f.env }}" type="password" autocomplete="new-password" spellcheck="false"
+               placeholder="{{ 'Enregistrée · laisse vide pour la garder' if f.stored else 'Non renseignée' }}">
+        {% if f.stored %}
+          <span class="badge badge-ok">enregistrée</span>
+          <label class="erase"><input type="checkbox" name="{{ f.env }}__effacer"> Effacer</label>
+        {% endif %}
+      </div>
+    {% else %}
+      <input id="f-{{ f.env }}" name="{{ f.env }}" type="{{ f.input_type }}" value="{{ f.value }}"
+             {% if f.placeholder %}placeholder="{{ f.placeholder }}"{% endif %}
+             {% if f.input_type == 'number' %}step="{{ f.step }}"{% if f.min is not none %} min="{{ f.min }}"{% endif %}{% endif %}
+             spellcheck="false">
+    {% endif %}
+  {% endif %}
+  {% if f.error %}<small class="field-error">{{ f.error }}</small>
+  {% elif f.help %}<small>{{ f.help }}</small>{% endif %}
+  <code class="env-name">{{ f.env }}</code>
+</div>

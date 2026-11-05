@@ -73,7 +73,8 @@ GROUPS: dict[str, tuple[str, str]] = {
     "limites": ("Limites et rythme", "Fréquence des passages, quantités et marges de sécurité."),
     "freeleech": ("Mode freeleech", "Recherche élargie quand un freeleech est actif sur ton compte."),
     "nettoyage": ("Nettoyage", "Retrait des torrents supprimés de c411."),
-    "crossseed": ("cross-seed", "Recherche immédiate sur tes autres trackers à la fin d'un téléchargement."),
+    "integrations": ("Intégrations", "cross-seed et Prowlarr, si tu les utilises. Laisse vide sinon : "
+                                     "l'interface s'adapte."),
     "bilan": ("Bilan quotidien", "Résumé de la journée : volumes, ratio, rendement par type."),
     "notifications": ("Notifications", "Discord et Telegram."),
     "alertes": ("Alertes", "Être prévenu quand le programme est en panne."),
@@ -179,10 +180,14 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("NETTOYAGE_MINUTES", "cleanup_minutes", "int", 60, "nettoyage", "Fréquence (minutes)", minimum=1),
 
     # --- cross-seed
-    Setting("CROSS_SEED_URL", "cs_url", "str", "", "crossseed", "Adresse de cross-seed",
+    Setting("CROSS_SEED_URL", "cs_url", "str", "", "integrations", "Adresse de cross-seed",
             "Par exemple http://localhost:2468, ou http://cross-seed:2468 depuis Docker. Vide = désactivé."),
-    Setting("CROSS_SEED_API_KEY", "cs_key", "secret", "", "crossseed", "Clé API cross-seed",
+    Setting("CROSS_SEED_API_KEY", "cs_key", "secret", "", "integrations", "Clé API cross-seed",
             "Commande : cross-seed api-key."),
+    Setting("PROWLARR_URL", "prowlarr_url", "str", "", "integrations", "Adresse de Prowlarr",
+            "Pour afficher son état au tableau de bord, par exemple http://localhost:9696. Vide = masqué."),
+    Setting("PROWLARR_API_KEY", "prowlarr_key", "secret", "", "integrations", "Clé API Prowlarr",
+            "Dans Prowlarr : Settings > General > API Key."),
 
     # --- Bilan
     Setting("BILAN_QUOTIDIEN", "bilan", "bool", False, "bilan", "Bilan quotidien"),

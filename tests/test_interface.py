@@ -109,9 +109,12 @@ class TestEngine(unittest.TestCase):
 
 # --------------------------------------------------------------------------- interface web
 
-@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
-class TestInterface(unittest.TestCase):
+class WebCase(unittest.TestCase):
+    """Préparation commune (application, fichiers temporaires, outils). Ne contient aucun test."""
+
     def setUp(self):
+        if not HAS_WEB:
+            self.skipTest("dépendances de l'interface absentes")
         from autodl.reglages import ConfigStore
         from autodl.web.app import create_app
         from autodl.web.auth import Auth
@@ -140,6 +143,10 @@ class TestInterface(unittest.TestCase):
         return self.client.post("/connexion", data={"utilisateur": user, "mot_de_passe": pw,
                                                     "csrf": self.csrf_of(page)}, follow_redirects=False)
 
+
+
+@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
+class TestInterface(WebCase):
     # ---- installation
     def test_premier_lancement_redirige_vers_l_installation(self):
         r = self.client.get("/", follow_redirects=False)
@@ -234,6 +241,202 @@ class TestInterface(unittest.TestCase):
         stored = (self.tmp / "interface.json").read_text(encoding="utf-8")
         self.assertNotIn("un-mot-de-passe-solide", stored)
         self.assertIn("empreinte", stored)
+
+
+# --------------------------------------------------------------------------- formulaires de configuration
+
+class TestFormulaire(unittest.TestCase):
+    def setUp(self):
+        from autodl.reglages import ConfigStore
+        self.tmp = Path(tempfile.mkdtemp())
+        self.store = ConfigStore(self.tmp / "config.json", self.tmp / ".env")
+        self.store.save({**BASE_ENV, "QBIT_PASS": "ancien-mdp", "QBIT_PAUSED": "true"})
+
+    def form(self, **values):
+        from autodl.web import formulaire
+        return formulaire
+
+    def test_secret_vide_conserve(self):
+        from autodl.web.formulaire import merge
+        merged, changed = merge("qbittorrent", {"QBIT_URL": "http://q", "QBIT_USER": "u", "QBIT_PASS": ""},
+                                self.store.values())
+        self.assertEqual(merged["QBIT_PASS"], "ancien-mdp")
+        self.assertNotIn("QBIT_PASS", changed)
+
+    def test_secret_efface_ou_remplace(self):
+        from autodl.web.formulaire import merge
+        merged, _ = merge("qbittorrent", {"QBIT_PASS__effacer": "on"}, self.store.values())
+        self.assertEqual(merged["QBIT_PASS"], "")
+        merged, changed = merge("qbittorrent", {"QBIT_PASS": "nouveau"}, self.store.values())
+        self.assertEqual(merged["QBIT_PASS"], "nouveau")
+        self.assertIn("QBIT_PASS", changed)
+
+    def test_case_decochee_vaut_false(self):
+        from autodl.web.formulaire import merge
+        merged, changed = merge("qbittorrent", {"QBIT_PASS": ""}, self.store.values())  # QBIT_PAUSED absent
+        self.assertEqual(merged["QBIT_PAUSED"], "false")
+        self.assertIn("QBIT_PAUSED", changed)
+
+    def test_rien_n_est_enregistre_en_cas_d_erreur(self):
+        from autodl.web.formulaire import save_group
+        before = self.store.values()
+        cfg, errors, _, _ = save_group("filtres", {"MIN_SEEDERS": "beaucoup"}, self.store)
+        self.assertIsNone(cfg)
+        self.assertTrue(any("MIN_SEEDERS" in e for e in errors))
+        self.assertEqual(self.store.values(), before)
+
+    def test_jamais_de_secret_dans_les_champs(self):
+        from autodl.web.formulaire import fields
+        for f in fields("qbittorrent", self.store.values(), []):
+            if f["kind"] == "secret":
+                self.assertEqual(f["value"], "")
+                self.assertTrue(f["stored"])
+
+    def test_ancien_nom_remplace(self):
+        from autodl.web.formulaire import save_group
+        self.store.save({**self.store.values(), "MAX_SIZE_MB": "800"})
+        cfg, errors, _, _ = save_group("filtres", {"TAILLE_MAX": "2Go", "MIN_COMPLETED": "1", "MIN_SEEDERS": "1"},
+                                    self.store)
+        self.assertEqual(errors, [])
+        self.assertNotIn("MAX_SIZE_MB", self.store.values())
+        self.assertEqual(cfg["max_size"], 2 * 1024**3)
+
+
+@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
+class TestPagesConfiguration(WebCase):
+    """Compte créé et session ouverte avant chaque test."""
+
+    def setUp(self):
+        super().setUp()
+        self.install()
+        self.csrf = re.search(r'name="csrf" content="([^"]+)"', self.client.get("/").text).group(1)
+
+    def test_page_par_groupe(self):
+        r = self.client.get("/configuration/qbittorrent")
+        self.assertEqual(r.status_code, 200)
+        for name in ("QBIT_URL", "QBIT_USER", "QBIT_PASS", "QBIT_CATEGORIE_PAR_TYPE", "Tester la connexion"):
+            self.assertIn(name, r.text)
+        self.assertNotIn("mdp-qbit", r.text)  # le mot de passe n'est jamais renvoyé
+        self.assertIn("enregistrée", r.text)
+
+    def test_tous_les_groupes_s_affichent(self):
+        from autodl.config import GROUPS
+        for group in GROUPS:
+            r = self.client.get(f"/configuration/{group}")
+            self.assertEqual(r.status_code, 200, group)
+            for secret in ("cle-secrete-123", "mdp-qbit"):
+                self.assertNotIn(secret, r.text, group)
+
+    def test_page_protegee(self):
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get("/configuration/c411", follow_redirects=False).headers["location"],
+                         "/connexion")
+
+    def test_enregistrement_applique_au_moteur(self):
+        r = self.client.post("/configuration/filtres", data={
+            "csrf": self.csrf, "MIN_COMPLETED": "3", "MIN_SEEDERS": "2", "TAILLE_MAX": "1Go", "EXCLUDE_WORDS": ""},
+            follow_redirects=False)
+        self.assertEqual(r.headers["location"], "/configuration/filtres?ok=1")
+        self.assertEqual(self.store.values()["MIN_COMPLETED"], "3")
+        self.assertEqual(self.store.values()["C411_API_KEY"], "cle-secrete-123")  # le reste est intact
+        cfg = self.engine.reload.call_args[0][0]
+        self.assertEqual((cfg["min_completed"], cfg["max_size"]), (3, 1024**3))
+
+    def test_erreur_affichee_rien_enregistre(self):
+        r = self.client.post("/configuration/filtres", data={"csrf": self.csrf, "MIN_SEEDERS": "abc"})
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("MIN_SEEDERS doit être un nombre entier", r.text)
+        self.assertEqual(self.store.values().get("MIN_SEEDERS", ""), "")
+        self.engine.reload.assert_not_called()
+
+    def test_jeton_obligatoire(self):
+        r = self.client.post("/configuration/filtres", data={"csrf": "faux", "MIN_SEEDERS": "5"})
+        self.assertEqual(r.status_code, 403)
+        self.assertNotEqual(self.store.values().get("MIN_SEEDERS"), "5")
+
+    def test_bouton_tester_avec_valeurs_non_enregistrees(self):
+        from autodl.web import app as app_mod
+        seen = {}
+        fake = lambda cfg: seen.update(url=cfg["qbit_url"], pw=cfg["qbit_pass"]) or {"ok": True, "message": "ok"}
+        with mock.patch.dict(app_mod.SERVICES, {"qbittorrent": (fake, "qbittorrent", "Tester")}):
+            r = self.client.post("/api/tester/qbittorrent", headers={"X-CSRF-Token": self.csrf},
+                                 json={"valeurs": {"QBIT_URL": "http://nouvelle", "QBIT_USER": "u", "QBIT_PASS": ""}})
+        self.assertEqual(r.json(), {"ok": True, "message": "ok"})
+        self.assertEqual(seen, {"url": "http://nouvelle", "pw": "mdp-qbit"})  # secret vide = celui enregistré
+        self.assertNotEqual(self.store.values()["QBIT_URL"], "http://nouvelle")  # rien d'enregistré
+
+    def test_tester_protege(self):
+        self.assertEqual(self.client.post("/api/tester/c411", json={}).status_code, 403)
+        r = self.client.post("/api/tester/inconnu", headers={"X-CSRF-Token": self.csrf}, json={})
+        self.assertEqual(r.status_code, 404)
+
+
+@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
+class TestDemarrageDifere(unittest.TestCase):
+    """Configuration incomplète au démarrage : le moteur démarre dès qu'elle devient valide."""
+
+    def test_moteur_cree_quand_la_config_devient_valide(self):
+        from autodl.reglages import ConfigStore
+        from autodl.web.app import create_app
+        from autodl.web.auth import Auth
+        tmp = Path(tempfile.mkdtemp())
+        store = ConfigStore(tmp / "config.json", tmp / ".env")
+        auth = Auth(tmp / "interface.json")
+        engine = mock.Mock()
+        engine.snapshot.return_value = {"state": "actif", "read_only": True, "min_ratio": 0.0, "interval": 300}
+        factory = mock.Mock(return_value=engine)
+        client = TestClient(create_app(None, auth, store, ["Variable manquante dans .env : C411_API_KEY"],
+                                       engine_factory=factory), base_url="http://localhost")
+        page = client.get("/installation")
+        client.post("/installation", data={"code": auth.setup_code, "utilisateur": "a", "mot_de_passe": "x" * 12,
+                                           "confirmation": "x" * 12,
+                                           "csrf": re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)})
+        home = client.get("/")
+        self.assertIn("Configuration incomplète", home.text)
+        csrf = re.search(r'name="csrf" content="([^"]+)"', home.text).group(1)
+        client.post("/configuration/c411", data={"csrf": csrf, "C411_API_KEY": "k", "C411_CATEGORIES": "7020"})
+        factory.assert_not_called()  # il manque encore qBittorrent
+        client.post("/configuration/qbittorrent", data={"csrf": csrf, "QBIT_URL": "http://q", "QBIT_USER": "u",
+                                                        "QBIT_PASS": "p"})
+        client.post("/configuration/ratio", data={"csrf": csrf, "MIN_RATIO": "0"})
+        factory.assert_called_once()
+        engine.start.assert_called_once()
+        self.assertNotIn("Configuration incomplète", client.get("/").text)
+
+
+class TestRechargement(unittest.TestCase):
+    def test_etat_conserve(self):
+        e = engine_mod.Engine(cfg(), interval=300, ctx={"last_ratio": 2.7, "freeleech": True, "categories_ok": {"x"}})
+        with mock.patch.object(engine_mod, "build_context", return_value={}):
+            e.apply(cfg(MIN_SEEDERS="9", BOUCLE_SECONDES="600"))
+        self.assertEqual(e.cfg["min_seeders"], 9)
+        self.assertEqual((e.ctx["last_ratio"], e.ctx["freeleech"], e.interval), (2.7, True, 600))
+
+    def test_rechargement_entre_deux_passages(self):
+        e = engine_mod.Engine(cfg(), interval=300, ctx={"tracking": types.SimpleNamespace(data={}, save=lambda: None)})
+        run = mock.Mock(return_value=0)
+        with mock.patch.multiple(engine_mod, run_once=run, maybe_cleanup=mock.Mock(), maybe_crossseed=mock.Mock(),
+                                 maybe_report=mock.Mock(), build_context=mock.Mock(return_value={})):
+            e.start()
+            TestEngine._wait(lambda: run.call_count >= 1)
+            e.reload(cfg(MIN_SEEDERS="7"))
+            TestEngine._wait(lambda: e.cfg["min_seeders"] == 7)
+            self.assertEqual(run.call_count, 1)  # pas de passage en plus : l'heure prévue est gardée
+            e.stop(5)
+
+
+class TestCodeInstallation(unittest.TestCase):
+    def test_code_conserve_entre_deux_redemarrages_puis_supprime(self):
+        if not HAS_WEB:
+            self.skipTest("dépendances de l'interface absentes")
+        from autodl.web.auth import Auth
+        tmp = Path(tempfile.mkdtemp())
+        first = Auth(tmp / "interface.json").setup_code
+        second = Auth(tmp / "interface.json")
+        self.assertEqual(second.setup_code, first)
+        self.assertTrue((tmp / "code-installation.txt").exists())
+        self.assertIsNone(second.create_admin("a", "x" * 12, first))
+        self.assertFalse((tmp / "code-installation.txt").exists())
 
 
 if __name__ == "__main__":

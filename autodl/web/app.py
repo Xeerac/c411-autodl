@@ -1,6 +1,7 @@
 """Application web de c411-autodl (FastAPI).
 
-Pages : installation (premier lancement), connexion, accueil. API : état du moteur, actions.
+Pages : installation (premier lancement), connexion, accueil, configuration.
+API : état du moteur, actions, tests des services.
 Toutes les pages et l'API exigent une session, sauf l'installation et la connexion.
 """
 from __future__ import annotations
@@ -14,6 +15,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ..commun import __version__, log
+from ..config import GROUPS
+from ..verifications import SERVICES
+from . import formulaire
 from .auth import Auth, password_problem
 
 HERE = Path(__file__).resolve().parent
@@ -31,12 +35,14 @@ SECURITY_HEADERS = {
 }
 
 
-def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None) -> FastAPI:
+def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None,
+               engine_factory=None) -> FastAPI:
+    """engine peut être None (configuration incomplète) : engine_factory(cfg) le crée dès qu'elle est valide."""
     app = FastAPI(title="c411-autodl", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.globals.update(version=__version__)
-    state = {"config_errors": config_errors or []}
+    state = {"config_errors": config_errors or [], "engine": engine}
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -144,7 +150,7 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
         if not session:
             return redirect("/connexion")
         return templates.TemplateResponse(request, "accueil.html", {
-            "session": session, "csrf": session["csrf"], "etat": engine.snapshot() if engine else None,
+            "session": session, "csrf": session["csrf"], "etat": state["engine"].snapshot() if state["engine"] else None,
             "config_errors": state["config_errors"]})
 
     # ------------------------------------------------------------------ API (session + jeton anti-falsification)
@@ -153,7 +159,7 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
     def api_etat(request: Request):
         if not current(request):
             return JSONResponse({"erreur": "non connecté"}, status_code=401)
-        return {"moteur": engine.snapshot() if engine else None, "erreurs_config": state["config_errors"]}
+        return {"moteur": state["engine"].snapshot() if state["engine"] else None, "erreurs_config": state["config_errors"]}
 
     @app.post("/api/action/{action}")
     def api_action(action: str, request: Request):
@@ -162,12 +168,87 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
             return JSONResponse({"erreur": "non connecté"}, status_code=401)
         if not secrets.compare_digest(session["csrf"], request.headers.get("X-CSRF-Token", "")):
             return JSONResponse({"erreur": "jeton invalide"}, status_code=403)
-        if engine is None:
+        if state["engine"] is None:
             return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
         if action not in ("passage", "pause", "reprise"):
             return JSONResponse({"erreur": "action inconnue"}, status_code=404)
-        engine.submit(action)
+        state["engine"].submit(action)
         return {"ok": True, "action": action}
+
+    # ------------------------------------------------------------------ configuration
+
+    def page_context(request: Request, session: dict, **extra) -> dict:
+        return {"session": session, "csrf": session["csrf"], "groups": GROUPS,
+                "etat": state["engine"].snapshot() if state["engine"] else None,
+                "config_errors": state["config_errors"], **extra}
+
+    def services_of(group: str) -> list[dict]:
+        return [{"id": sid, "label": label} for sid, (_, g, label) in SERVICES.items() if g == group]
+
+    @app.get("/configuration")
+    def configuration_root():
+        return redirect("/configuration/" + next(iter(GROUPS)))
+
+    @app.get("/configuration/{groupe}", response_class=HTMLResponse)
+    def configuration_page(groupe: str, request: Request):
+        session = current(request)
+        if not session:
+            return redirect("/connexion")
+        if groupe not in GROUPS:
+            return redirect("/configuration")
+        values = store.values()
+        return templates.TemplateResponse(request, "configuration.html", page_context(
+            request, session, groupe=groupe, fields=formulaire.fields(groupe, values, []),
+            services=services_of(groupe), saved=request.query_params.get("ok") == "1",
+            source="config.json" if store.exists() else ".env"))
+
+    @app.post("/configuration/{groupe}", response_class=HTMLResponse)
+    async def configuration_save(groupe: str, request: Request):
+        session = current(request)
+        if not session:
+            return redirect("/connexion")
+        form = {k: str(v) for k, v in (await request.form()).items()}
+        if groupe not in GROUPS or not secrets.compare_digest(session["csrf"], form.get("csrf", "")):
+            return JSONResponse({"erreur": "jeton invalide"}, status_code=403)
+        strict = state["engine"] is not None  # moteur en marche : on ne casse jamais une configuration valide
+        cfg, errors, changed, remaining = formulaire.save_group(groupe, form, store, strict=strict)
+        if errors:
+            return templates.TemplateResponse(request, "configuration.html", page_context(
+                request, session, groupe=groupe, errors=errors, services=services_of(groupe),
+                fields=formulaire.fields(groupe, store.values(), errors, submitted=form),
+                source="config.json" if store.exists() else ".env"), status_code=422)
+        if changed:
+            log.info("Configuration modifiée depuis l'interface (%s) : %s", session["user"], formulaire.describe(changed))
+        state["config_errors"] = remaining
+        if cfg is not None and (changed or state["engine"] is None):
+            if state["engine"] is not None:
+                state["engine"].reload(cfg)
+            elif engine_factory is not None:
+                state["engine"] = engine_factory(cfg)
+                state["engine"].start()
+                log.info("Configuration complète : démarrage du moteur")
+        return redirect(f"/configuration/{groupe}?ok=1")
+
+    @app.post("/api/tester/{service}")
+    async def api_tester(service: str, request: Request):
+        session = current(request)
+        if not session:
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        if not secrets.compare_digest(session["csrf"], request.headers.get("X-CSRF-Token", "")):
+            return JSONResponse({"erreur": "jeton invalide"}, status_code=403)
+        if service not in SERVICES:
+            return JSONResponse({"erreur": "service inconnu"}, status_code=404)
+        body = await request.json()
+        func, group, _ = SERVICES[service]
+        form = {k: str(v) for k, v in (body.get("valeurs") or {}).items()}
+        cfg, _ = formulaire.preview_cfg(group, form, store)  # les valeurs saisies, même pas encore enregistrées
+        from starlette.concurrency import run_in_threadpool
+        try:
+            result = await run_in_threadpool(func, cfg)
+        except Exception as e:  # un test ne doit jamais faire planter l'interface
+            result = {"ok": False, "message": f"Erreur inattendue : {e}"}
+        log.info("Interface : test %s : %s", service, "réussi" if result["ok"] else "échec")
+        return result
 
     @app.get("/sante")
     def sante():
