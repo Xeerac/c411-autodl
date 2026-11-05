@@ -1,0 +1,46 @@
+{% extends "_app_layout.html" %}
+{% from "_icones.html" import icon with context %}
+{% block title %}Relevés · c411-autodl{% endblock %}
+{% block nav_releves %}active{% endblock %}
+{% block content %}
+<section class="panel releves-head" aria-labelledby="titre-releves">
+  <header class="panel-head">
+    <div>
+      <h1 id="titre-releves">Relevés</h1>
+      <p class="muted small" id="releves-note">Un relevé par jour de ton compte c411, comparé à la veille.</p>
+    </div>
+  </header>
+  <dl class="facts compare" id="compare">
+    {% for key, label in (("ratio", "Ratio"), ("envoye", "Envoyé au total"), ("recu", "Reçu au total")) %}
+    <div class="fact" data-metric="{{ key }}">
+      <dt>{{ label }}</dt>
+      <dd><span class="fact-value" id="cmp-{{ key }}">–</span>
+        <span class="delta fact-line" id="cmp-{{ key }}-delta"><span class="skeleton w-60"></span></span></dd>
+    </div>
+    {% endfor %}
+  </dl>
+</section>
+
+<div class="releves-grid">
+  <section class="panel" aria-labelledby="titre-courbe">
+    <header class="panel-head"><h2 id="titre-courbe">Ratio jour après jour</h2><span class="updated" id="courbe-periode"></span></header>
+    <div class="chart" id="chart-ratio" role="img" aria-label="Évolution du ratio"><div class="skeleton-stack"><span class="skeleton w-100"></span><span class="skeleton w-80"></span></div></div>
+  </section>
+  <section class="panel" aria-labelledby="titre-barres">
+    <header class="panel-head"><h2 id="titre-barres">Envoyé chaque jour</h2></header>
+    <div class="chart" id="chart-upload" role="img" aria-label="Volume envoyé chaque jour"><div class="skeleton-stack"><span class="skeleton w-100"></span><span class="skeleton w-80"></span></div></div>
+  </section>
+</div>
+
+<section class="panel" aria-labelledby="titre-historique">
+  <header class="panel-head"><h2 id="titre-historique">Historique</h2></header>
+  <div class="table-wrap">
+    <table class="table table-releves" id="historique">
+      <colgroup><col class="col-jour"><col><col><col></colgroup>
+      <thead><tr><th scope="col">Jour</th><th scope="col" class="num">Ratio</th><th scope="col" class="num">Envoyé</th><th scope="col" class="num">Reçu</th></tr></thead>
+      <tbody><tr aria-hidden="true"><td><span class="skeleton w-60"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton"></span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='releves.js') }}" defer></script>{% endblock %}

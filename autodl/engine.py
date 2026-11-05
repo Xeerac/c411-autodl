@@ -14,6 +14,7 @@ import types
 
 from .commun import __version__, log
 from .contexte import build_context
+from .releves import maybe_releve
 from .moteur import _safe, cleanup, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once, watchdog
 
 # Tâches ponctuelles lancées depuis l'interface. Les aperçus sont TOUJOURS en essai à blanc.
@@ -25,7 +26,7 @@ TASKS = {
 }
 ACTIONS = ("passage", "pause", "reprise", "recharger", "arret", *TASKS)
 # Informations d'état gardées quand la configuration change
-KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "down_since", "categories_ok")
+KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "down_since", "categories_ok", "releves")
 
 
 class Engine:
@@ -109,6 +110,7 @@ class Engine:
         maybe_cleanup(self.args, self.cfg, self.ctx)
         _safe(maybe_crossseed, self.args, self.cfg, self.ctx)
         maybe_report(self.args, self.cfg, self.ctx)
+        _safe(maybe_releve, self.args, self.cfg, self.ctx)  # relevé quotidien (ratio, envoyé, reçu)
         if time.monotonic() - self._last_beat >= 3600:  # signe de vie toutes les heures
             ratio = self.ctx.get("last_ratio")
             log.info("Toujours actif : %d torrents ajoutés depuis le démarrage%s", self.total_added,

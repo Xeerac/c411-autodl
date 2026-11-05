@@ -44,6 +44,15 @@
     <symbol id="radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12 18 6"/>
     </symbol>
+    <symbol id="courbe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 4.5v15h16"/><path d="m7.5 15 3.5-4 3 2.5 5-6.5"/>
+    </symbol>
+    <symbol id="hausse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 18.5v-13"/><path d="m6.5 11 5.5-5.5 5.5 5.5"/>
+    </symbol>
+    <symbol id="baisse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5.5v13"/><path d="m6.5 13 5.5 5.5 5.5-5.5"/>
+    </symbol>
     <symbol id="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="m5.5 12.5 4 4 9-9"/>
     </symbol>

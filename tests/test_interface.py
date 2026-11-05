@@ -31,6 +31,13 @@ def enable_logging(test: unittest.TestCase) -> None:
     test.addCleanup(logging.disable, previous)
 
 
+def args(**over):
+    """Options de ligne de commande simulées (passage normal en boucle par défaut)."""
+    a = dict(dry_run=False, rattrapage=False, pages=1, boucle=300)
+    a.update(over)
+    return types.SimpleNamespace(**a)
+
+
 BASE_ENV = {"C411_API_KEY": "k", "QBIT_URL": "http://q", "QBIT_USER": "u", "QBIT_PASS": "p", "MIN_RATIO": "0"}
 
 
@@ -585,6 +592,99 @@ class TestPagesTableau(WebCase):
             data = self.client.get("/api/tableau").json()
         self.assertEqual([s["id"] for s in data["services"]], ["qbittorrent"])
         self.assertEqual((data["ajouts"], data["types"]), ([], []))
+
+
+# --------------------------------------------------------------------------- relevés quotidiens
+
+class TestReleves(unittest.TestCase):
+    def setUp(self):
+        from autodl.releves import Releves
+        self.path = Path(tempfile.mkdtemp()) / "releves.json"
+        self.r = Releves(self.path)
+
+    def test_comparaison_avec_la_veille(self):
+        GB = 1024**3
+        self.r.add("2026-11-04", 2.80, 100 * GB, 50 * GB)
+        self.r.add("2026-11-05", 2.84, 102 * GB, 50 * GB + 512 * 1024**2)
+        today, yesterday = self.r.rows()
+        self.assertEqual(today["jour"], "2026-11-05")
+        self.assertEqual(today["ratio_delta"], 0.04)
+        self.assertAlmostEqual(today["ratio_pct"], 1.43, places=2)
+        self.assertEqual((today["envoye_delta"], today["envoye_pct"]), (2 * GB, 2.0))
+        self.assertEqual(today["envoye_delta_txt"], "+2.00 Go")
+        self.assertIsNone(yesterday["ratio_delta"])  # premier relevé : rien à comparer
+
+    def test_baisse(self):
+        self.r.add("2026-11-04", 2.50, 1000, 400)
+        self.r.add("2026-11-05", 2.40, 1000, 417)
+        today = self.r.rows()[0]
+        self.assertLess(today["ratio_delta"], 0)
+        self.assertLess(today["ratio_pct"], 0)
+
+    def test_un_seul_releve_par_jour_et_persistance(self):
+        from autodl.releves import Releves
+        self.r.add("2026-11-05", 2.0, 1, 1)
+        self.r.add("2026-11-05", 2.1, 2, 1)  # remplace celui du même jour
+        again = Releves(self.path)
+        self.assertEqual(len(again.items), 1)
+        self.assertEqual(again.items[0]["ratio"], 2.1)
+
+    def ctx(self, ratio=2.83):
+        profile = types.SimpleNamespace(last_profile={"zen": {"balance": 345}},
+                                        ratio=lambda: (ratio, int(ratio * 100), 100, True))
+        return {"profile": profile, "releves": self.r}
+
+    def test_premier_releve_tout_de_suite(self):
+        from autodl.releves import maybe_releve
+        c = cfg(C411_PROFILE_API_KEY="k", BILAN_HEURE="23")
+        entry = maybe_releve(args(), c, self.ctx())
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry["zen"], 345)
+        self.assertIsNone(maybe_releve(args(), c, self.ctx()))  # déjà fait aujourd'hui
+
+    def test_attend_l_heure_du_bilan(self):
+        from autodl.releves import maybe_releve
+        self.r.add("2000-01-01", 2.0, 1, 1)  # un ancien relevé existe
+        tomorrow_hour = (time.localtime().tm_hour + 1) % 24
+        if tomorrow_hour == 0:
+            self.skipTest("trop proche de minuit pour ce test")
+        c = cfg(C411_PROFILE_API_KEY="k", BILAN_HEURE=str(tomorrow_hour))
+        self.assertIsNone(maybe_releve(args(), c, self.ctx()))
+        c = cfg(C411_PROFILE_API_KEY="k", BILAN_HEURE="0")
+        self.assertIsNotNone(maybe_releve(args(), c, self.ctx()))
+
+    def test_rien_sans_cle_profil_ni_en_essai_a_blanc(self):
+        from autodl.releves import maybe_releve
+        self.assertIsNone(maybe_releve(args(), cfg(), self.ctx()))
+        self.assertIsNone(maybe_releve(args(dry_run=True), cfg(C411_PROFILE_API_KEY="k"), self.ctx()))
+        self.assertFalse(self.path.exists())
+
+
+@unittest.skipUnless(HAS_WEB, "dépendances de l'interface absentes")
+class TestPageReleves(WebCase):
+    def setUp(self):
+        super().setUp()
+        self.install()
+
+    def test_page_et_api(self):
+        from autodl.releves import Releves
+        r = Releves(self.tmp / "releves.json")
+        r.add("2026-11-04", 2.8, 100, 50)
+        r.add("2026-11-05", 2.9, 110, 50)
+        self.engine.ctx = {"releves": r}
+        self.engine.cfg = cfg(C411_PROFILE_API_KEY="k")
+        page = self.client.get("/releves")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Relevés", page.text)
+        self.assertIn('href="/releves"', self.client.get("/").text)  # onglet dans la navigation
+        data = self.client.get("/api/releves").json()
+        self.assertEqual([x["jour"] for x in data["releves"]], ["2026-11-05", "2026-11-04"])
+        self.assertTrue(data["profil"])
+
+    def test_protegee(self):
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get("/api/releves").status_code, 401)
+        self.assertEqual(self.client.get("/releves", follow_redirects=False).headers["location"], "/connexion")
 
 
 class TestCodeInstallation(unittest.TestCase):

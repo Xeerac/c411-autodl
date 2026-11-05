@@ -19,6 +19,7 @@ from ..commun import __version__, log
 from .. import journal
 from ..config import GROUPS, SETTINGS
 from ..engine import TASKS
+from ..releves import Releves
 from ..tableau import Dashboard
 from ..verifications import SERVICES
 from . import formulaire
@@ -270,6 +271,23 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
         if eng is None:
             return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
         return dashboard.data(eng.cfg, eng.ctx["state"])
+
+    @app.get("/releves", response_class=HTMLResponse)
+    def releves_page(request: Request):
+        session = current(request)
+        if not session:
+            return redirect("/connexion")
+        return templates.TemplateResponse(request, "releves.html", page_context(request, session))
+
+    @app.get("/api/releves")
+    def api_releves(request: Request):
+        if not current(request):
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        eng = state["engine"]
+        releves = eng.ctx.get("releves") if eng is not None else None
+        rows = (releves or Releves()).rows()
+        cfg = eng.cfg if eng is not None else {}
+        return {"releves": rows, "heure": cfg.get("bilan_heure", 8), "profil": bool(cfg.get("profile_key"))}
 
     @app.get("/journal", response_class=HTMLResponse)
     def journal_page(request: Request):
