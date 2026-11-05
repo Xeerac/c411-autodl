@@ -15,7 +15,15 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import c411_autodl as m  # noqa: E402
+from autodl import (c411, cli, commun, config, contenu, filtres, moteur,  # noqa: E402
+                    notifications, qbit, stockage)
+
+# Tous les éléments du programme réunis sous « m », comme avant le découpage en modules
+m = types.SimpleNamespace()
+for _module in (commun, config, c411, qbit, notifications, stockage, contenu, filtres, moteur, cli):
+    for _name in dir(_module):
+        if not _name.startswith("__") or _name == "__version__":
+            setattr(m, _name, getattr(_module, _name))
 
 logging.disable(logging.CRITICAL)  # pas de journal pendant les tests
 MB, GB = 1024**2, 1024**3
@@ -317,7 +325,7 @@ class TestCrossSeed(unittest.TestCase):
 
     def test_premier_lancement_ne_renvoie_pas_l_existant(self):
         ctx = self.ctx([tor("a"), tor("b")])
-        with mock.patch.object(m, "_crossseed_webhook") as hook:
+        with mock.patch.object(moteur, "_crossseed_webhook") as hook:
             self.assertEqual(m.maybe_crossseed(args(), self.cfg, ctx), 0)
             hook.assert_not_called()
         self.assertEqual(sorted(ctx["tracking"].data["crossseed_envoyes"]), ["a", "b"])
@@ -326,7 +334,7 @@ class TestCrossSeed(unittest.TestCase):
         ctx = self.ctx([tor("a")])
         m.maybe_crossseed(args(), self.cfg, ctx)  # premier lancement
         ctx["qbit"].t += [tor("b"), tor("c", progress=0.4), tor("d", tags="manuel")]
-        with mock.patch.object(m, "_crossseed_webhook") as hook:
+        with mock.patch.object(moteur, "_crossseed_webhook") as hook:
             self.assertEqual(m.maybe_crossseed(args(), self.cfg, ctx), 1)
             self.assertEqual(m.maybe_crossseed(args(), self.cfg, ctx), 0)  # déjà envoyé
         hook.assert_called_once_with(self.cfg, "b")
@@ -335,9 +343,9 @@ class TestCrossSeed(unittest.TestCase):
         ctx = self.ctx([tor("a")])
         m.maybe_crossseed(args(), self.cfg, ctx)
         ctx["qbit"].t.append(tor("b"))
-        with mock.patch.object(m, "_crossseed_webhook", side_effect=OSError("refusé")):
+        with mock.patch.object(moteur, "_crossseed_webhook", side_effect=OSError("refusé")):
             self.assertEqual(m.maybe_crossseed(args(), self.cfg, ctx), 0)
-        with mock.patch.object(m, "_crossseed_webhook") as hook:
+        with mock.patch.object(moteur, "_crossseed_webhook") as hook:
             self.assertEqual(m.maybe_crossseed(args(), self.cfg, ctx), 1)
             hook.assert_called_once_with(self.cfg, "b")
 
@@ -535,6 +543,73 @@ class TestAlerte(unittest.TestCase):
         self.assertEqual(m._duration(2 * 3600 + 7 * 60), "2 h 07")
 
 
+# --------------------------------------------------------------------------- schéma de configuration
+
+class TestSchema(unittest.TestCase):
+    def test_noms_et_cles_uniques(self):
+        envs = [s.env for s in config.SETTINGS]
+        keys = [s.key for s in config.SETTINGS]
+        self.assertEqual(len(envs), len(set(envs)))
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_groupes_et_types_connus(self):
+        kinds = {"str", "secret", "int", "float", "bool", "size", "size_opt", "words", "list", "regex", "choice"}
+        for s in config.SETTINGS:
+            self.assertIn(s.group, config.GROUPS, s.env)
+            self.assertIn(s.kind, kinds, s.env)
+            self.assertTrue(s.label, s.env)
+            if s.kind == "choice":
+                self.assertIn(s.default, s.choices, s.env)
+
+    def test_env_example_complet(self):
+        """Chaque réglage du schéma est documenté dans .env.example, et inversement."""
+        example = config.read_env_file(ROOT / ".env.example")
+        schema = {s.env for s in config.SETTINGS}
+        self.assertEqual(sorted(schema - set(example)), [], "absents de .env.example")
+        self.assertEqual(sorted(set(example) - schema), [], "inconnus du schéma")
+
+    def test_valeurs_par_defaut(self):
+        cfg, errors = config.build_cfg({"C411_API_KEY": "k", "QBIT_URL": "u", "QBIT_USER": "u",
+                                        "QBIT_PASS": "p", "MIN_RATIO": "0"})
+        self.assertEqual(errors, [])
+        self.assertEqual(set(cfg), {s.key for s in config.SETTINGS})
+        self.assertEqual((cfg["pages"], cfg["tri"], cfg["max_per_run"], cfg["fl_max_size"]), (1, "interet", 50, None))
+
+    def test_conversions(self):
+        cfg, _ = config.build_cfg({"TAILLE_MAX": "2Go", "FORMATS": "EPUB, Cbz", "MIN_RATIO": "1,5",
+                                   "QBIT_PAUSED": "oui", "TRI": "RECENT", "FREELEECH_CATEGORIES": "2030, 5000"})
+        self.assertEqual((cfg["max_size"], cfg["formats"], cfg["min_ratio"]), (2 * GB, ["epub", "cbz"], 1.5))
+        self.assertEqual((cfg["qbit_paused"], cfg["tri"], cfg["fl_cats"]), (True, "recent", ["2030", "5000"]))
+
+    def test_vide_egal_defaut(self):
+        cfg, _ = config.build_cfg({"C411_URL": "", "REQUEST_DELAY": " ", "NETTOYAGE_TAG": ""})
+        self.assertEqual((cfg["c411_url"], cfg["delay"], cfg["own_tag"]), ("https://c411.org", 1.0, "autodl"))
+
+    def test_ancien_nom_accepte(self):
+        cfg, _ = config.build_cfg({"MAX_SIZE_MB": "800"})
+        self.assertEqual(cfg["max_size"], 800 * MB)
+        cfg, _ = config.build_cfg({"MAX_SIZE_MB": "800", "TAILLE_MAX": "1Go"})  # le nouveau nom l'emporte
+        self.assertEqual(cfg["max_size"], GB)
+
+    def test_toutes_les_erreurs_d_un_coup(self):
+        _, errors = config.build_cfg({"MIN_SEEDERS": "abc", "NETTOYAGE_ACTION": "tout", "TAILLE_MAX": "beaucoup",
+                                      "REGEX_EXCLUSION": "([", "BILAN_HEURE": "25", "MAX_SEEDERS": "-1"})
+        joined = "\n".join(errors)
+        for expected in ("C411_API_KEY", "QBIT_URL", "MIN_SEEDERS", "NETTOYAGE_ACTION", "TAILLE_MAX",
+                         "REGEX_EXCLUSION", "BILAN_HEURE", "MAX_SEEDERS", "C411_PROFILE_API_KEY"):
+            self.assertIn(expected, joined)
+
+    def test_alerte_apres_ramenee_a_1(self):
+        cfg, errors = config.build_cfg({"ALERTE_APRES": "0"})
+        self.assertEqual(cfg["alert_after"], 1)
+        self.assertFalse(any("ALERTE_APRES" in e for e in errors))
+
+    def test_secrets(self):
+        secrets = {s.env for s in config.SETTINGS if s.secret}
+        self.assertTrue({"C411_API_KEY", "C411_PROFILE_API_KEY", "QBIT_PASS", "CROSS_SEED_API_KEY",
+                         "DISCORD_WEBHOOK_URL", "TELEGRAM_BOT_TOKEN"} <= secrets)
+
+
 # --------------------------------------------------------------------------- démarrage
 
 class TestDemarrage(unittest.TestCase):
@@ -545,6 +620,8 @@ class TestDemarrage(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:  # dossier vide : aucun .env réel n'est lu
             script = Path(d) / "c411_autodl.py"
             script.write_bytes((ROOT / "c411_autodl.py").read_bytes())
+            __import__("shutil").copytree(ROOT / "autodl", Path(d) / "autodl",
+                                          ignore=__import__("shutil").ignore_patterns("__pycache__"))
             full_env = {"PATH": "", "SYSTEMROOT": __import__("os").environ.get("SYSTEMROOT", ""),
                         **self.ENV, **env}
             return subprocess.run([sys.executable, "-I", str(script), *cli], capture_output=True,

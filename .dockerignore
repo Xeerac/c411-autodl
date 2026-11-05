@@ -10,3 +10,4 @@ state.json
 tests/
 __pycache__/
 *.pyc
+autodl/__pycache__/

@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Vérification de la syntaxe
-        run: python -m py_compile c411_autodl.py
+        run: python -m compileall -q c411_autodl.py autodl
       - name: Tests (aucun accès réseau, tout est simulé)
         run: python -m unittest discover -s tests -v
       - name: Scripts shell

@@ -16,6 +16,7 @@ RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin autodl
 
 WORKDIR /app
 COPY c411_autodl.py ./
+COPY autodl/ ./autodl/
 RUN mkdir -p /app/donnees && chown autodl:autodl /app/donnees
 
 ENV PYTHONUNBUFFERED=1 \
