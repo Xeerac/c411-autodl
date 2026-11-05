@@ -72,7 +72,7 @@
       // jauge : le minimum est au milieu ; pleine à deux fois le minimum
       gauge.hidden = false;
       gauge.classList.toggle("is-low", e.ratio <= e.min_ratio * 1.1);
-      gauge.firstElementChild.style.width = `${Math.min(100, Math.max(3, (e.ratio / (e.min_ratio * 2)) * 100))}%`;
+      gauge.firstElementChild.style.transform = `scaleX(${Math.min(1, Math.max(0.03, e.ratio / (e.min_ratio * 2)))})`;
     }
     $("kpi-last-pass").textContent = fmtTime(e.last_pass_at);
     $("kpi-last-added").textContent = e.last_pass_at
@@ -165,7 +165,7 @@
         ]), fill, r.barre];
       }).map(([row, fill, width]) => {
         // largeur posée par le script : la politique de sécurité bloque style="…"
-        requestAnimationFrame(() => { fill.style.width = `${Math.max(width, 2)}%`; });
+        requestAnimationFrame(() => { fill.style.transform = `scaleX(${Math.max(width, 2) / 100})`; });
         return row;
       }));
     }

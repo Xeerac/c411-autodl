@@ -302,8 +302,8 @@ body.auth {
 .fact-sub { color: var(--text-3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .fact-line { flex-basis: 100%; }
 .gauge { display: block; flex-basis: 100%; height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: .25rem; }
-.gauge span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--accent);
-              transition: width 600ms var(--ease), background var(--fast); }
+.gauge span { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--accent);
+              transform: scaleX(0); transform-origin: left; transition: transform 600ms var(--ease), background var(--fast); }
 .gauge.is-low span { background: var(--warn); }
 
 /* ---------------------------------------------------------------- tableau de bord : grille */
@@ -355,8 +355,8 @@ body.auth {
 .bar-label .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-value { grid-column: 2; grid-row: 1; font-size: var(--fs-base); font-weight: 600; font-variant-numeric: tabular-nums; }
 .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
-.bar-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--tc, var(--t-autre));
-            transition: width 700ms var(--ease); }
+.bar-fill { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--tc, var(--t-autre));
+            transform: scaleX(0); transform-origin: left; transition: transform 700ms var(--ease); }
 
 /* actions */
 .actions { list-style: none; margin: 0; padding: 0; display: grid; }
