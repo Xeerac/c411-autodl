@@ -6,6 +6,7 @@ Toutes les pages et l'API exigent une session, sauf l'installation et la connexi
 """
 from __future__ import annotations
 
+import mimetypes
 import secrets
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from . import formulaire
 from .auth import Auth, password_problem
 
 HERE = Path(__file__).resolve().parent
+# Type exact des polices (certains systèmes ne le connaissent pas)
+mimetypes.add_type("font/woff2", ".woff2")
 SESSION_COOKIE, CSRF_COOKIE = "autodl_session", "autodl_csrf"
 
 SECURITY_HEADERS = {
