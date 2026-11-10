@@ -56,8 +56,9 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 9. [Dépannage / FAQ](#dépannage--faq)
 10. [Sécurité](#sécurité)
 11. [Contenu du dépôt](#contenu-du-dépôt)
-12. [Contribuer](#contribuer)
-13. [Licence](#licence)
+12. [Comment ce projet est fait](#comment-ce-projet-est-fait)
+13. [Contribuer](#contribuer)
+14. [Licence](#licence)
 
 ---
 
@@ -922,6 +923,23 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 | `CHANGELOG.md` | Historique des versions |
 | `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification. Ceux de l'interface demandent `requirements-interface.txt` et `httpx` |
 | `donnees/` | Créé au premier lancement : historique des ajouts, relevés quotidiens (`releves.json`), journal et configuration de l'interface, non versionnés |
+
+---
+
+## Comment ce projet est fait
+
+Par souci de transparence : **ce projet est développé avec l'aide d'une IA** (Claude, d'Anthropic). Le code, les textes de l'interface et cette documentation sont écrits avec elle. Je ne suis pas développeur de métier.
+
+Ce que je fais moi-même :
+- je décide de ce que l'outil doit faire, à partir de mon propre usage de c411 et de ma seedbox ;
+- je teste chaque nouveauté **en réel sur ma seedbox**, souvent plusieurs jours en version d'essai, avant de la publier ;
+- je relis les règles de c411 (API, Hit & Run) avant toute fonction qui pourrait les toucher, et les options risquées sont **désactivées par défaut**, avec un aperçu qui ne modifie rien.
+
+Et pour la fiabilité :
+- chaque modification passe une **batterie de tests automatiques** (plus de 150), lancés par GitHub sous Linux et Windows, avec plusieurs versions de Python et la construction de l'image Docker ;
+- le code est **ouvert** : tout le monde peut le lire, le vérifier et signaler un problème.
+
+Si tu repères un bug ou quelque chose de mal fait, une [issue](https://github.com/Xeerac/c411-autodl/issues) est la bienvenue.
 
 ---
 
