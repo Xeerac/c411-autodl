@@ -226,8 +226,15 @@ def check(cfg: dict, base: Path | None = None, now: float | None = None) -> dict
                        f"({cert.get('expire') or '?'}). Caddy le renouvelle tout seul."
                        + ("" if state == "ok" else " Le renouvellement semble bloqué : vérifie le port 80.")))
 
-    out["pret"] = True
     out["url"] = f"https://{domain}"
+    if not proxied and status.get("pare_feu_443") is False:
+        steps.append(_step("acces", "Accès depuis Internet", "alerte",
+                           "Le certificat est prêt, mais le pare-feu du serveur n'accepte le port 443 (HTTPS) que "
+                           "depuis certaines adresses, par exemple celles de Cloudflare : sans proxy, ton navigateur "
+                           "est bloqué. Réactive le proxy Cloudflare (nuage orange, mode SSL/TLS « Full (strict) »), "
+                           "ou ouvre le port 443 à tout le monde (ufw allow 443/tcp)."))
+        return out
+    out["pret"] = True
     if proxied:
         final = "L'interface est accessible, à travers Cloudflare."
     else:

@@ -120,8 +120,8 @@ def certificate(domain: str) -> dict:
             "expire": datetime.datetime.fromtimestamp(expires).strftime("%d/%m/%Y"), "expire_ts": expires}
 
 
-def firewall_allows_80() -> bool | None:
-    """True / False selon ufw, None si ufw n'est pas utilisé."""
+def firewall_allows(port: int) -> bool | None:
+    """Le port est-il ouvert à tout le monde ? True / False selon ufw, None si ufw n'est pas utilisé."""
     if not shutil.which("ufw"):
         return None
     code, out = run(["ufw", "status"])
@@ -129,7 +129,7 @@ def firewall_allows_80() -> bool | None:
         return None if code != 0 else True
     for line in out.splitlines():
         cols = line.split()
-        if len(cols) >= 3 and "ALLOW" in line and re.match(r"^(80(,\d+)*|\d+(,\d+)*,80(,\d+)*)(/tcp)?$", cols[0]) \
+        if len(cols) >= 3 and "ALLOW" in line and str(port) in cols[0].split("/")[0].split(",") \
                 and ("Anywhere" in line or "Partout" in line):
             return True
     return False
@@ -176,7 +176,7 @@ def main() -> int:
     code, version = run(["caddy", "version"])
     status = {"version": VERSION, "vu_le": time.time(), "demande_id": request.get("id"),
               "caddy": version.split()[0] if code == 0 and version else None,
-              "adresses": addresses(), "pare_feu_80": firewall_allows_80(), "domaine": "", "erreur": None,
+              "adresses": addresses(), "pare_feu_80": firewall_allows(80), "pare_feu_443": firewall_allows(443), "domaine": "", "erreur": None,
               "certificat": None}
     try:
         content, domain = snippet_for(request, args.amont)

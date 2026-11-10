@@ -148,6 +148,11 @@ class TestDomaine(unittest.TestCase):
         # demande pas encore appliquée
         out, steps = self.check(["188.0.0.1"], dict(status, demande_id=4), req)
         self.assertEqual(steps["caddy"], "attente")
+        # certificat prêt, sans proxy, mais le pare-feu ne laisse passer 443 que pour Cloudflare
+        blocked = dict(status, pare_feu_443=False, certificat={"valide": True, "expire_ts": 10_000.0 + 80 * 86400})
+        out, steps = self.check(["188.0.0.1"], blocked, req)
+        self.assertEqual(steps["acces"], "alerte")
+        self.assertFalse(out["pret"])
         # proxy réactivé après le certificat : tout va bien
         status.update(certificat={"valide": True, "emetteur": "Let's Encrypt", "expire_ts": 10_000.0 + 80 * 86400})
         out, steps = self.check(["104.21.3.4"], status, req)
