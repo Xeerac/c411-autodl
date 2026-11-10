@@ -5,7 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const hero = $("hero");
   if (!hero) return;
-  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg$/, "icons.svg") || "/static/icons.svg";
+  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg(?=\?|$)/,"icons.svg") || "/static/icons.svg";
 
   // état -> [étiquette courte, titre, explication]
   const STATES = {

@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="dark">
   {% if csrf %}<meta name="csrf" content="{{ csrf }}">{% endif %}
   <title>{% block title %}c411-autodl{% endblock %}</title>
-  <link rel="icon" href="{{ url_for('static', path='logo.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <link rel="icon" href="{{ url_for('static', path='logo.svg') }}?v={{ version }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v={{ version }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% block body %}{% endblock %}

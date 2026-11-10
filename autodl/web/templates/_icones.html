@@ -1,4 +1,4 @@
 {# Icône du jeu static/icons.svg. Décorative par défaut (aria-hidden) : le texte voisin porte le sens. #}
 {% macro icon(name, cls="") -%}
-<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="{{ url_for('static', path='icons.svg') }}#{{ name }}"></use></svg>
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="{{ url_for('static', path='icons.svg') }}?v={{ version }}#{{ name }}"></use></svg>
 {%- endmacro %}

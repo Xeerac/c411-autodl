@@ -12,7 +12,7 @@
     return values;
   };
 
-  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg$/, "icons.svg") || "/static/icons.svg";
+  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg(?=\?|$)/,"icons.svg") || "/static/icons.svg";
   const icon = (name) => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "icon");

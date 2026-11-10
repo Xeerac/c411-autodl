@@ -4,7 +4,7 @@
 {% block body %}
 <main class="auth-shell">
   <div class="auth-brand">
-    <img src="{{ url_for('static', path='logo.svg') }}" alt="" width="40" height="40">
+    <img src="{{ url_for('static', path='logo.svg') }}?v={{ version }}" alt="" width="40" height="40">
     <div>
       <div class="brand-name">c411-autodl</div>
       <div class="brand-sub">version {{ version }}</div>

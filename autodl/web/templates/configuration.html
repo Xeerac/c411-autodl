@@ -48,4 +48,4 @@
   </section>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='config.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='config.js') }}?v={{ version }}" defer></script>{% endblock %}

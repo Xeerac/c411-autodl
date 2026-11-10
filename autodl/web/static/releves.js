@@ -4,7 +4,7 @@
   const $ = (id) => document.getElementById(id);
   if (!$("compare")) return;
   const SVG = "http://www.w3.org/2000/svg";
-  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg$/, "icons.svg") || "/static/icons.svg";
+  const ICONS = document.querySelector('link[rel="icon"]')?.href.replace(/logo\.svg(?=\?|$)/,"icons.svg") || "/static/icons.svg";
 
   const el = (tag, props = {}, children = []) => {
     const node = document.createElement(tag);
