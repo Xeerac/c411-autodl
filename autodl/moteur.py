@@ -417,8 +417,8 @@ def _crossseed_webhook(cfg: dict, infohash: str) -> None:
         r.read()
 
 
-def build_report(cfg: dict, ctx: dict) -> tuple[str, dict]:
-    """Bilan depuis le dernier relevé. Retourne (texte au format Markdown simple, nouveau relevé)."""
+def report_data(cfg: dict, ctx: dict) -> tuple[dict, dict]:
+    """Chiffres du bilan depuis le dernier relevé. Retourne (chiffres, nouveau relevé)."""
     qbit, state, tracking = ctx["qbit"], ctx["state"], ctx["tracking"]
     qbit.login(quiet=True)
     torrents = qbit.torrents(tag=cfg["own_tag"])
@@ -452,32 +452,85 @@ def build_report(cfg: dict, ctx: dict) -> tuple[str, dict]:
         if since is None or when >= since:
             added += 1
 
-    period = "depuis le " + time.strftime("%d/%m à %H:%M", time.localtime(since)) if since else "depuis le début"
-    lines = [f"📊 **Bilan c411-autodl** ({period})",
-             f"• {added} torrent(s) ajouté(s) · {_human(down_delta)} téléchargés · **{_human(up_delta)} envoyés**"]
-
+    data = {"since": since, "added": added, "up": up_delta, "down": down_delta, "ratio": None,
+            "ratio_delta": None, "torrents": len(torrents),
+            "types": sorted(((k, n, size, up) for k, (n, size, up) in by_type.items()),
+                            key=lambda r: r[3] / r[2] if r[2] else 0, reverse=True),
+            "top": sorted(top, reverse=True)[:3]}
     new_snap = {"time": time.time(),
                 "uploaded": {t["hash"].lower(): int(t.get("uploaded", 0)) for t in torrents},
                 "downloaded": {t["hash"].lower(): int(t.get("downloaded", 0)) for t in torrents}}
     if cfg["profile_key"]:
         try:
             ratio, _, _, _ = ctx["profile"].ratio()
-            new_snap["ratio"] = ratio
-            evolution = f" ({ratio - snap['ratio']:+.2f})" if "ratio" in snap else ""
-            lines.append(f"• Ratio c411 : {ratio:.2f}{evolution}")
+            new_snap["ratio"] = data["ratio"] = ratio
+            if "ratio" in snap:
+                data["ratio_delta"] = ratio - snap["ratio"]
         except Exception as e:
             log.warning("Bilan : ratio indisponible (%s)", e)
+    return data, new_snap
 
-    if by_type:
+
+def _period(since: float | None) -> str:
+    return "depuis le " + time.strftime("%d/%m à %H:%M", time.localtime(since)) if since else "depuis le début"
+
+
+def report_text(d: dict) -> str:
+    """Bilan au format Markdown simple (journal et Telegram)."""
+    lines = [f"📊 **Bilan c411-autodl** ({_period(d['since'])})",
+             f"• {d['added']} torrent(s) ajouté(s) · {_human(d['down'])} téléchargés · **{_human(d['up'])} envoyés**"]
+    if d["ratio"] is not None:
+        evolution = f" ({d['ratio_delta']:+.2f})" if d["ratio_delta"] is not None else ""
+        lines.append(f"• Ratio c411 : {d['ratio']:.2f}{evolution}")
+    if d["types"]:
         lines.append("**Rendement par type** (envoyé ÷ taille, depuis l'ajout) :")
-        ranked = sorted(by_type.items(), key=lambda kv: kv[1][2] / kv[1][1] if kv[1][1] else 0, reverse=True)
-        for kind, (n, size, up) in ranked:
+        for kind, n, size, up in d["types"]:
             lines.append(f"• {kind} : ×{(up / size if size else 0):.2f} ({n} torrent(s), {_human(up)} envoyés)")
-    if top:
+    if d["top"]:
         lines.append("**Ce qui a le plus envoyé** :")
-        for du, name in sorted(top, reverse=True)[:3]:
+        for du, name in d["top"]:
             lines.append(f"• {name[:80]} — {_human(du)}")
-    return "\n".join(lines), new_snap
+    return "\n".join(lines)
+
+
+TYPE_LABELS = {"bd": "BD / mangas", "ebook": "eBooks", "presse": "Presse", "livre-audio": "Livres audio",
+               "livre": "Livres", "musique": "Musique", "film": "Films", "serie": "Séries", "logiciel": "Logiciels",
+               "jeu": "Jeux", "adulte": "Adulte"}
+GREEN, ORANGE, BLURPLE = 0x2ECC71, 0xE67E22, 0x5865F2
+
+
+def report_embed(d: dict) -> dict:
+    """Bilan sous forme d'embed Discord : chiffres clés en tuiles, rendement en tableau aligné."""
+    delta = d["ratio_delta"]
+    color = BLURPLE if not delta else GREEN if delta > 0 else ORANGE
+    fields = [{"name": "📤 Envoyé", "value": f"**{_human(d['up'])}**", "inline": True},
+              {"name": "📥 Téléchargé", "value": _human(d["down"]), "inline": True},
+              {"name": "➕ Ajoutés", "value": f"{d['added']} torrent(s)", "inline": True}]
+    if d["ratio"] is not None:
+        arrow = "" if delta is None else f"  {'▲' if delta > 0 else '▼' if delta < 0 else '='} {delta:+.2f}"
+        fields.append({"name": "⚖️ Ratio c411", "value": f"**{d['ratio']:.2f}**{arrow}", "inline": True})
+    if d["down"]:
+        fields.append({"name": "🔁 Envoyé ÷ téléchargé", "value": f"×{d['up'] / d['down']:.2f}", "inline": True})
+    fields.append({"name": "🌱 En seed", "value": f"{d['torrents']} torrent(s)", "inline": True})
+    if d["types"]:
+        rows = [f"{'Type':<13}{'Rdt':>8}{'Nb':>6}{'Envoyé':>11}"]
+        for kind, n, size, up in d["types"][:8]:
+            yield_ = "×" + format(up / size if size else 0, ".2f")
+            rows.append(f"{TYPE_LABELS.get(kind, kind)[:13]:<13}{yield_:>8}{n:>6}{_human(up):>11}")
+        fields.append({"name": "📈 Rendement par type (envoyé ÷ taille, depuis l'ajout)",
+                       "value": ("```\n" + "\n".join(rows))[:1020] + "\n```", "inline": False})
+    if d["top"]:
+        medals = ("🥇", "🥈", "🥉")
+        lines = [f"{medals[i]} **{_human(du)}** · {name[:70]}" for i, (du, name) in enumerate(d["top"])]
+        fields.append({"name": "🏆 Ce qui a le plus envoyé", "value": "\n".join(lines)[:1024], "inline": False})
+    return {"title": "📊 Bilan quotidien", "description": _period(d["since"]).capitalize(),
+            "color": color, "fields": fields}
+
+
+def build_report(cfg: dict, ctx: dict) -> tuple[str, dict]:
+    """Bilan depuis le dernier relevé. Retourne (texte au format Markdown simple, nouveau relevé)."""
+    data, snap = report_data(cfg, ctx)
+    return report_text(data), snap
 
 
 def maybe_report(args, cfg: dict, ctx: dict, force: bool = False) -> None:
@@ -498,14 +551,15 @@ def maybe_report(args, cfg: dict, ctx: dict, force: bool = False) -> None:
             tracking.save()
             log.info("Bilan : premier relevé enregistré, premier bilan demain vers %d h", cfg["bilan_heure"])
             return
-        text, snap = build_report(cfg, ctx)
+        data, snap = report_data(cfg, ctx)
+        text = report_text(data)
     except Exception as e:
         log.error("Bilan impossible : %s", e)
         return
     for line in text.replace("**", "").splitlines():
         log.info("%s", line)
     if ctx.get("notifier"):
-        ctx["notifier"].send(text)
+        ctx["notifier"].send(text, embed=report_embed(data))
     if not force:
         tracking.data.update(bilan=snap, bilan_date=today)
         tracking.save()

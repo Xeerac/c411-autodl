@@ -600,6 +600,7 @@ body.auth {
               vector-effect: non-scaling-stroke; }
 .chart-area { fill: rgba(61, 220, 151, .09); }
 .chart-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart-point { fill: var(--surface); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .chart-hit { fill: transparent; cursor: default; }
 .chart-hit:hover { fill: rgba(61, 220, 151, .15); }
 .chart-bar { fill: color-mix(in srgb, var(--accent) 45%, var(--surface-3)); transition: fill var(--fast) var(--ease); }

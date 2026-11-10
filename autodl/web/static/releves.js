@@ -79,6 +79,16 @@
     });
   }
 
+  // Dates sous l'axe : chaque jour tant qu'il y a la place, sinon le premier et le dernier
+  const shortDay = (d) => new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  function dayLabels(series, x, edges = true) {
+    const n = series.length;
+    if (n > 8) return [[edges ? x(0) : PAD.l, fmtDay(series[0].jour), "start"],
+                       [edges ? x(n - 1) : W - PAD.r, fmtDay(series.at(-1).jour), "end"]];
+    return series.map((r, i) => [x(i), shortDay(r.jour),
+      edges && n > 1 && i === 0 ? "start" : edges && n > 1 && i === n - 1 ? "end" : "middle"]);
+  }
+
   function lineChart(series) {
     const box = $("chart-ratio");
     if (series.length < 2) {
@@ -93,13 +103,15 @@
     const x = (i) => PAD.l + (W - PAD.l - PAD.r) * (i / (series.length - 1));
     const y = (v) => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - min) / (max - min));
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart-svg" });
-    axes(svg, min, max, (v) => v.toFixed(2),
-         [[x(0), fmtDay(series[0].jour), "start"], [x(series.length - 1), fmtDay(series.at(-1).jour), "end"]]);
+    axes(svg, min, max, (v) => v.toFixed(2), dayLabels(series, x));
     const pts = series.map((r, i) => `${x(i).toFixed(1)},${y(r.ratio).toFixed(1)}`);
     svg.append(svgEl("path", { d: `M${pts[0]} L${pts.join(" L")} L${x(series.length - 1)},${H - PAD.b} L${x(0)},${H - PAD.b} Z`, class: "chart-area" }));
     svg.append(svgEl("polyline", { points: pts.join(" "), class: "chart-line" }));
-    const lx = x(series.length - 1), ly = y(series.at(-1).ratio);
-    svg.append(svgEl("circle", { cx: lx, cy: ly, r: 4, class: "chart-dot" }));
+    // Un point par jour ; le dernier relevé, plein et plus gros
+    series.forEach((r, i) => {
+      const last = i === series.length - 1;
+      svg.append(svgEl("circle", { cx: x(i), cy: y(r.ratio), r: last ? 4.5 : 3.5, class: last ? "chart-dot" : "chart-point" }));
+    });
     series.forEach((r, i) => {
       const hit = svgEl("circle", { cx: x(i), cy: y(r.ratio), r: 9, class: "chart-hit" });
       const title = svgEl("title");
@@ -122,7 +134,7 @@
     const max = Math.max(...days.map((r) => Math.max(r.envoye_delta, 0)), 1);
     const n = days.length, slot = (W - PAD.l - PAD.r) / n, bw = Math.min(28, slot * 0.62);
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart-svg" });
-    axes(svg, 0, max, human, [[PAD.l, fmtDay(days[0].jour), "start"], [W - PAD.r, fmtDay(days.at(-1).jour), "end"]]);
+    axes(svg, 0, max, human, dayLabels(days, (i) => PAD.l + slot * i + slot / 2, false));
     days.forEach((r, i) => {
       const v = Math.max(r.envoye_delta, 0);
       const h = (H - PAD.t - PAD.b) * (v / max);

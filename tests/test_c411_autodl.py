@@ -453,6 +453,23 @@ class TestBilan(unittest.TestCase):
         self.assertLess(text.index("bd : ×5.00"), text.index("ebook : ×1.00"))  # trié par rendement
         self.assertEqual(snap["uploaded"]["a"], 500 * MB)
 
+    def test_bilan_en_embed(self):
+        data = dict(since=None, added=43, up=76 * GB, down=11 * GB, ratio=3.53, ratio_delta=0.10, torrents=416,
+                    types=[("bd", 145, 34 * GB, 343 * GB), ("livre-audio", 62, 26 * GB, 74 * GB)],
+                    top=[(5 * GB, "Full Metal Panic! Sigma"), (3 * GB, "Un franciscain")])
+        e = m.report_embed(data)
+        self.assertEqual(e["color"], 0x2ECC71)  # ratio en hausse
+        values = {f["name"]: f["value"] for f in e["fields"]}
+        self.assertEqual(values["📤 Envoyé"], "**76.00 Go**")
+        self.assertIn("▲ +0.10", values["⚖️ Ratio c411"])
+        table = next(v for k, v in values.items() if k.startswith("📈"))
+        self.assertTrue(table.startswith("```") and table.endswith("```"))
+        self.assertIn("BD / mangas", table)
+        self.assertIn("Livres audio", table)
+        self.assertIn("🥇 **5.00 Go** · Full Metal Panic! Sigma", values["🏆 Ce qui a le plus envoyé"])
+        self.assertTrue(all(len(f["value"]) <= 1024 for f in e["fields"]))
+        self.assertEqual(m.report_embed(dict(data, ratio_delta=-0.2))["color"], 0xE67E22)
+
     def test_premier_releve_puis_une_fois_par_jour(self):
         state = m.State(self.tmp / "s.json")
         tracking = m.Tracking(self.tmp / "t.json")
@@ -479,9 +496,13 @@ class TestNotifications(unittest.TestCase):
         n._post = lambda url, payload: sent.append((url, payload))
         n.added([dict(title="BD <B> & co [CBZ]", page="https://c411.org/torrents/b", size=150 * MB, dl_factor=0.0)],
                 150 * MB, 2.345)
-        discord, telegram = sent[0][1]["content"], sent[1][1]["text"]
-        self.assertIn("[BD <B> & co (CBZ)](https://c411.org/torrents/b)", discord)
-        self.assertIn("freeleech", discord)
+        embed, telegram = sent[0][1]["embeds"][0], sent[1][1]["text"]
+        self.assertEqual(embed["title"], "📥 1 torrent(s) ajouté(s) à la seedbox (150.0 Mo) · ratio ≈ 2.35")
+        self.assertEqual(embed["color"], 0x2ECC71)
+        self.assertIn("[BD <B> & co (CBZ)](https://c411.org/torrents/b)", embed["description"])
+        self.assertIn("freeleech", embed["description"])
+        self.assertIn("c411-autodl", embed["footer"]["text"])
+        self.assertEqual(sent[0][1]["allowed_mentions"], {"parse": []})  # jamais de @everyone
         self.assertIn('<a href="https://c411.org/torrents/b">BD &lt;B&gt; &amp; co (CBZ)</a>', telegram)
         self.assertIn("ratio ≈ 2.35", telegram)
 
