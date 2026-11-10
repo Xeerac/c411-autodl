@@ -1,5 +1,23 @@
 # Historique des versions
 
+## v2.3.0 — 2026-11-10
+
+**Accès à l'interface par un nom de domaine** (optionnel, `DOMAINE_ACTIF` ; le tunnel SSH reste le mode par défaut) :
+- l'interface devient accessible en **HTTPS** sur ton domaine ou sous-domaine, avec un certificat **Let's Encrypt** obtenu et renouvelé par **Caddy** ;
+- nouvel **assistant serveur** (`serveur/installer_domaine.sh`) : l'interface ne transmet qu'un nom de domaine, l'assistant écrit la configuration Caddy à partir d'un modèle fixe, la valide, recharge Caddy (l'ancienne configuration est remise en cas d'erreur) et vérifie le certificat ;
+- page **Configuration → Accès par domaine** avec les vérifications en direct : DNS vers l'adresse du serveur, **alerte si le proxy Cloudflare est actif** pendant l'installation, assistant, Caddy, certificat (émetteur, expiration), pare-feu (ports 80 et 443), puis le feu vert pour **réactiver le proxy** (mode « Full (strict) ») ;
+- protections en accès Internet : HTTPS obligatoire (HSTS), cookies « Secure », seul le domaine est accepté, vraie adresse du visiteur (même derrière Cloudflare), blocage global après 30 échecs en 15 min sans couper le tunnel, pages exclues des moteurs de recherche, notification à chaque connexion (`DOMAINE_NOTIF_CONNEXION`).
+
+**Double authentification** (optionnelle) : onglet **Sécurité**, code à 6 chiffres (TOTP) de n'importe quelle application d'authentification, code jamais accepté deux fois ; secours en ligne de commande : `--desactiver-2fa`.
+
+**Notifications Discord en embeds** : barre de couleur selon le type de message ; bilan quotidien en tuiles (envoyé, téléchargé, ajouts, ratio ▲▼, envoyé ÷ téléchargé, torrents en seed), tableau du rendement par type et podium des plus gros envois. Telegram reste en texte.
+
+**Relevés** : un point par jour sur la courbe du ratio, et la date de chaque jour sous les graphiques tant qu'il y a la place.
+
+**Interface** : les fichiers (scripts, styles) portent le numéro de version dans leur adresse, le navigateur charge donc toujours la dernière version après une mise à jour.
+
+- 153 tests (18 de plus).
+
 ## v2.2.0 — 2026-11-05
 
 **Retrait des torrents inactifs** (`INACTIFS_RETIRER`, désactivé par défaut) :

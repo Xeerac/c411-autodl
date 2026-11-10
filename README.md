@@ -48,6 +48,8 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
    - [Lancer l'interface](#lancer-linterface)
    - [Premier lancement](#premier-lancement)
    - [Y accéder depuis ton PC : le tunnel SSH](#y-accéder-depuis-ton-pc--le-tunnel-ssh)
+   - [Accès par un nom de domaine (optionnel)](#accès-par-un-nom-de-domaine-optionnel)
+   - [Double authentification](#double-authentification)
 6. [Tous les réglages](#tous-les-réglages)
 7. [Commandes](#commandes)
 8. [Mettre à jour](#mettre-à-jour)
@@ -382,7 +384,8 @@ Depuis la v2.0, c411-autodl a une **interface web** : un tableau de bord pour su
 - **Tableau de bord** : l'état du programme (actif, en pause, freeleech, en panne), ton ratio avec une jauge, le volume envoyé par tes torrents, le dernier et le prochain passage. On y voit aussi l'état de qBittorrent, de cross-seed et de Prowlarr (ces deux derniers seulement s'ils sont configurés), les **derniers ajouts** avec ce qu'ils ont déjà envoyé, et le **rendement par type**.
 - **Actions** : passage immédiat, pause et reprise, essai à blanc, bilan, aperçu du nettoyage et aperçu du rangement. Les aperçus **ne modifient jamais rien**.
 - **Configuration** : tous les réglages, rangés par thème, avec une explication sous chaque champ. Un bouton **« Tester »** vérifie chaque service (clés c411, qBittorrent, cross-seed, Prowlarr, notifications) **avant même d'enregistrer**. Les changements sont vérifiés, puis pris en compte **sans redémarrage**.
-- **Relevés** : chaque matin, ton ratio, ton total envoyé et ton total reçu sur c411 sont relevés et **comparés à la veille** (écart et pourcentage, ▲ en hausse, ▼ en baisse), avec la courbe du ratio jour après jour, l'envoyé de chaque journée et tout l'historique.
+- **Relevés** : chaque matin, ton ratio, ton total envoyé et ton total reçu sur c411 sont relevés et **comparés à la veille** (écart et pourcentage, ▲ en hausse, ▼ en baisse), avec la courbe du ratio jour après jour (un point par jour), l'envoyé de chaque journée et tout l'historique.
+- **Sécurité** : double authentification optionnelle (code à 6 chiffres) et rappel des protections actives.
 - **Journal en direct**, avec filtres (ajouts, problèmes, freeleech, nettoyage, cross-seed) et recherche.
 - Un affichage adapté au **téléphone**, avec les onglets en bas de l'écran.
 
@@ -423,7 +426,7 @@ Le code sert à ce que personne d'autre ne puisse créer le compte à ta place. 
 
 ### Y accéder depuis ton PC : le tunnel SSH
 
-L'interface n'est **jamais exposée sur Internet**. Depuis ton PC, on y accède par un **tunnel SSH** : ta connexion SSH habituelle transporte aussi la page de l'interface.
+**Par défaut**, l'interface n'est **pas exposée sur Internet**. Depuis ton PC, on y accède par un **tunnel SSH** : ta connexion SSH habituelle transporte aussi la page de l'interface. Si tu préfères une adresse du type `https://c411.mondomaine.fr`, voir [Accès par un nom de domaine](#accès-par-un-nom-de-domaine-optionnel).
 
 **Avec PuTTY :**
 1. Charge ta session, puis va dans **Connection → SSH → Tunnels**.
@@ -439,9 +442,54 @@ ssh -L 8411:localhost:8411 utilisateur@ip-du-vps
 
 Si l'interface tourne directement sur ton PC, pas besoin de tunnel : ouvre simplement http://localhost:8411.
 
+### Accès par un nom de domaine (optionnel)
+
+Le tunnel SSH n'est pas toujours pratique. Tu peux rendre l'interface accessible en **HTTPS sur ton propre domaine ou sous-domaine**, avec un certificat **Let's Encrypt** obtenu et renouvelé automatiquement. Tout se règle et se vérifie depuis l'interface.
+
+**Prérequis :** un serveur (VPS) avec **[Caddy](https://caddyserver.com/docs/install)** installé, les ports **80 et 443** libres pour lui, et un nom de domaine dont tu gères le DNS (par exemple chez Cloudflare).
+
+**1. Installer l'assistant serveur** (une seule fois, en root, depuis le dossier `c411-autodl`) :
+
+```bash
+sudo bash serveur/installer_domaine.sh
+```
+
+Pour des raisons de sécurité, le programme ne modifie jamais lui-même ton serveur web. L'interface dépose seulement le **nom de domaine** dans `donnees/domaine/`. Un petit assistant installé sur la machine (service systemd `c411-autodl-domaine`) le vérifie, écrit la configuration Caddy à partir d'un **modèle fixe**, la **valide** puis recharge Caddy. Si Caddy refuse la configuration, l'ancienne est remise. L'installation ajoute une seule ligne `import /etc/caddy/c411-autodl.caddy` à ton `Caddyfile`, après en avoir fait une copie : tes autres sites ne sont pas touchés. Pour tout retirer : `sudo bash serveur/installer_domaine.sh --retirer`.
+
+**2. Créer l'enregistrement DNS** : un enregistrement **A** de ton sous-domaine vers l'adresse IP du serveur. Chez Cloudflare, mets-le d'abord en **gris** (« DNS only ») : le certificat s'obtient plus sûrement sans le proxy.
+
+**3. Activer l'accès** dans **Configuration → Accès par domaine** : coche l'option, saisis le domaine et enregistre. La page vérifie toute seule, toutes les 10 secondes :
+
+| Étape | Ce qui est vérifié |
+|---|---|
+| Nom de domaine | Le nom saisi est valide |
+| DNS | Le domaine pointe bien vers ce serveur, ou vers quelle autre adresse |
+| Proxy Cloudflare | S'il est actif avant le certificat, une alerte t'explique comment le désactiver le temps de l'installation |
+| Assistant serveur | Il est installé et répond |
+| Serveur web | Caddy est configuré pour ce domaine |
+| Certificat SSL | Il est valide, avec son émetteur et sa date d'expiration. Si ton pare-feu bloque le port 80, la page te le dit |
+| Accès depuis Internet | Si ton pare-feu n'ouvre le port 443 qu'à Cloudflare, la page te dit de réactiver le proxy |
+
+**4. Réactiver le proxy Cloudflare** si tu le souhaites (nuage orange), une fois le certificat obtenu, avec le mode SSL/TLS sur **« Full (strict) »**. La page l'indique à la fin.
+
+> 💡 **Pare-feu limité à Cloudflare** (`ufw` n'autorise les ports 80 et 443 que depuis Cloudflare) : ouvre le port 80 à tous le temps du certificat (`ufw allow 80/tcp`), puis referme-le une fois le proxy réactivé (`ufw delete allow 80/tcp`). Les renouvellements passent ensuite par Cloudflare.
+
+Pour revenir au tunnel seul, décoche l'option : l'assistant retire le domaine de Caddy.
+
+### Double authentification
+
+Dans l'onglet **Sécurité**, tu peux activer un **code à 6 chiffres** demandé après le mot de passe, avec n'importe quelle application d'authentification : Google Authenticator, Aegis, 2FAS, Bitwarden, 1Password…
+
+1. Clique sur **Configurer**, puis ajoute un compte dans ton application **avec la clé de configuration** affichée. Depuis ton téléphone, le lien « ouvrir directement l'application » le fait pour toi.
+2. Saisis le code affiché par l'application pour confirmer : c'est activé.
+
+Elle est **optionnelle**, mais fortement conseillée si l'interface est accessible par un nom de domaine. **Téléphone perdu ?** Sur le serveur, `python c411_autodl.py --desactiver-2fa` la désactive (avec Docker : `docker compose exec c411-autodl python c411_autodl.py --desactiver-2fa`).
+
 ### Sécurité de l'interface
 
-- **Accessible uniquement depuis la machine**, ou par le tunnel. Le mot de passe reste obligatoire, même ainsi.
+- **Accessible uniquement depuis la machine**, ou par le tunnel, par défaut. Le mot de passe reste obligatoire, même ainsi.
+- **Par un nom de domaine** (si tu l'as activé) : HTTPS obligatoire (HSTS), cookies envoyés uniquement en HTTPS, **seul ton domaine est accepté**, et la vraie adresse du visiteur est lue, même derrière Cloudflare. En plus du blocage par adresse, **30 échecs en 15 minutes** depuis Internet, toutes adresses confondues, bloquent les connexions par le domaine pendant 15 minutes, sans couper le tunnel. Les pages sont exclues des moteurs de recherche, et une notification te prévient à chaque connexion depuis Internet (`DOMAINE_NOTIF_CONNEXION`).
+- **Double authentification** optionnelle (voir ci-dessus).
 - **Mot de passe haché** (scrypt). Après **5 échecs** en 15 minutes, l'adresse est bloquée pendant 15 minutes.
 - **Clés et mots de passe jamais réaffichés** : un champ secret indique seulement s'il est enregistré. Le journal masque automatiquement toute valeur secrète.
 - Protection contre les requêtes forgées (CSRF), en-têtes de sécurité stricts, et **aucune ressource externe** : polices et icônes sont servies par l'interface elle-même.
@@ -664,6 +712,18 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `TELEGRAM_CHAT_ID` | *(vide)* | Ton identifiant Telegram |
 | `NOTIF_PAUSES` | `true` | Prévenir aussi des pauses et reprises liées au ratio |
 
+Sur Discord, les messages arrivent sous forme d'**embeds** : une barre de couleur selon le type de message (vert pour un ajout, orange pour une pause, rouge pour une panne…). Le **bilan quotidien** y est présenté en tuiles (envoyé, téléchargé, ajouts, ratio avec ▲ ou ▼, envoyé ÷ téléchargé, torrents en seed), avec un tableau du rendement par type et le podium des torrents qui ont le plus envoyé. Telegram reçoit le même contenu en texte.
+
+### Accès par domaine
+
+Voir [Accès par un nom de domaine](#accès-par-un-nom-de-domaine-optionnel).
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `DOMAINE_ACTIF` | `false` | `true` rend l'interface accessible en HTTPS sur `DOMAINE_NOM` (nécessite Caddy et l'assistant serveur) |
+| `DOMAINE_NOM` | *(vide)* | Domaine ou sous-domaine, par exemple `c411.mondomaine.fr` |
+| `DOMAINE_NOTIF_CONNEXION` | `true` | Notification à chaque connexion à l'interface depuis Internet |
+
 ---
 
 ## Commandes
@@ -686,6 +746,8 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `python c411_autodl.py --recategoriser` | Range les torrents existants (ajoute `--garder-emplacement` pour ne déplacer aucun fichier) |
 | `python c411_autodl.py --interface` | Lance l'interface web et le moteur (voir [Interface web](#interface-web)) |
 | `python c411_autodl.py --interface --lecture-seule` | Interface pour essayer, sans rien ajouter, supprimer ni notifier |
+| `python c411_autodl.py --desactiver-2fa` | Secours : désactive la double authentification de l'interface (téléphone perdu) |
+| `sudo bash serveur/installer_domaine.sh` | Installe l'assistant d'accès par nom de domaine (Caddy), voir [Accès par un nom de domaine](#accès-par-un-nom-de-domaine-optionnel) |
 | `python c411_autodl.py --version` | Affiche la version |
 | `python c411_autodl.py -v` | Mode détaillé : affiche chaque torrent ignoré et la raison |
 
@@ -712,6 +774,22 @@ Ton `.env`, ta configuration de l'interface et ton historique (`donnees/`) ne so
 ---
 
 ## Dépannage / FAQ
+
+<details>
+<summary><b>Mon domaine ne répond pas (« a mis trop de temps à répondre »), alors que tout est vert</b></summary>
+
+Le plus souvent, le domaine pointe en direct vers le serveur (proxy Cloudflare désactivé, nuage gris) alors que le pare-feu n'accepte le port 443 que depuis Cloudflare. Réactive le proxy (nuage orange, mode SSL/TLS « Full (strict) »), ou ouvre le port 443 à tous (`ufw allow 443/tcp`). La page **Accès par domaine** le signale par l'étape « Accès depuis Internet ».
+
+Juste après un changement dans Cloudflare, ton navigateur peut garder l'ancienne adresse quelques minutes : ferme-le complètement et rouvre-le.
+</details>
+
+<details>
+<summary><b>Le certificat SSL reste « en cours »</b></summary>
+
+- Let's Encrypt doit pouvoir joindre le serveur sur le **port 80** : vérifie ton pare-feu (la page le signale si `ufw` le bloque).
+- Avec le proxy Cloudflare actif, si l'option « Always Use HTTPS » est activée, désactive le proxy le temps d'obtenir le certificat.
+- Les messages de Caddy sont visibles avec `journalctl -u caddy -n 50`.
+</details>
 
 <details>
 <summary><b>« qBittorrent : identifiants refusés » ou « connexion refusée (HTTP 401/403) »</b></summary>
@@ -821,7 +899,7 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 - Ta **passkey c411** (dans l'URL d'annonce) n'est pas utilisée par ce programme : ne la mets nulle part.
 - Le programme ne contacte que c411, ta WebUI qBittorrent et, si tu les as configurés, cross-seed, Discord ou Telegram.
 - Avec Docker, le programme tourne avec un **utilisateur non root**, et l'image ne contient ni ta configuration ni tes données : elles sont montées au lancement.
-- L'interface web n'est **jamais exposée sur Internet** : voir [Sécurité de l'interface](#sécurité-de-linterface).
+- Par défaut, l'interface web n'est **pas exposée sur Internet**. Si tu l'ouvres sur un nom de domaine, active la **double authentification** : voir [Sécurité de l'interface](#sécurité-de-linterface).
 - `donnees/config.json` (ta configuration de l'interface) et `donnees/interface.json` (ton compte, mot de passe haché) sont lisibles par leur propriétaire seulement. Ne les partage pas.
 
 ---
@@ -839,6 +917,7 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 | `installer_service.sh` | Installation en service systemd (Linux) |
 | `Dockerfile`, `docker-compose.yml` | Lancement avec Docker |
 | `migrer_vers_docker.sh` | Bascule d'une installation systemd vers Docker, avec retour possible |
+| `serveur/` | Assistant d'accès par nom de domaine (`installer_domaine.sh`, `assistant_domaine.py`), installé sur la machine hôte |
 | `LICENSE` | Licence MIT |
 | `CHANGELOG.md` | Historique des versions |
 | `tests/` | Tests automatiques (`python -m unittest discover -s tests`), lancés par GitHub à chaque modification. Ceux de l'interface demandent `requirements-interface.txt` et `httpx` |
