@@ -143,7 +143,12 @@ def check(cfg: dict, base: Path | None = None, now: float | None = None) -> dict
         machine.add(pub)
     proxied = bool(ips) and all(is_cloudflare(ip) for ip in ips)
     out["cloudflare"] = proxied
-    if not ips:
+    cert = status.get("certificat") or {}
+    cert_ok = bool(cert.get("valide")) and status.get("domaine") == domain
+    if proxied and cert_ok:  # installation terminée, puis proxy réactivé : c'est la situation voulue
+        steps.append(_step("dns", "DNS", "ok",
+                           f"{domain} passe par le proxy Cloudflare ({', '.join(ips[:2])}), qui transmet au serveur."))
+    elif not ips:
         steps.append(_step("dns", "DNS", "erreur",
                            f"{domain} ne pointe vers aucune adresse. Crée un enregistrement A vers "
                            f"{pub or 'l’adresse IP du serveur'} chez ton hébergeur de DNS, puis patiente quelques minutes."))
@@ -162,8 +167,6 @@ def check(cfg: dict, base: Path | None = None, now: float | None = None) -> dict
                            f"{domain} pointe vers {', '.join(ips)}. Adresse du serveur inconnue pour l'instant."))
 
     # 2. Cloudflare
-    cert = status.get("certificat") or {}
-    cert_ok = bool(cert.get("valide")) and status.get("domaine") == domain
     if proxied and not cert_ok:
         steps.append(_step("cloudflare", "Proxy Cloudflare", "alerte",
                            "Le proxy Cloudflare (nuage orange) est actif. Désactive-le le temps de l'installation : "

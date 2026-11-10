@@ -157,6 +157,7 @@ class TestDomaine(unittest.TestCase):
         status.update(certificat={"valide": True, "emetteur": "Let's Encrypt", "expire_ts": 10_000.0 + 80 * 86400})
         out, steps = self.check(["104.21.3.4"], status, req)
         self.assertEqual(steps["cloudflare"], "ok")
+        self.assertEqual(steps["dns"], "ok")
         self.assertTrue(out["pret"])
 
     def test_demande_ne_transmet_que_le_domaine(self):
