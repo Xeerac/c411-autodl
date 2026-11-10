@@ -30,7 +30,9 @@ def serve(cfg: dict, errors: list[str], store, host: str, port: int, interval: i
                      engine_factory=lambda c: Engine(c, interval=interval, read_only=read_only))
     log.info("Interface disponible sur http://%s:%d", "localhost" if host in ("127.0.0.1", "0.0.0.0") else host, port)
     try:
-        uvicorn.run(app, host=host, port=port, log_level="warning", access_log=False, server_header=False)
+        # proxy_headers=False : l'adresse du visiteur est lue par l'application elle-même (voir app.visitor)
+        uvicorn.run(app, host=host, port=port, log_level="warning", access_log=False, server_header=False,
+                    proxy_headers=False)
     finally:
         if engine:
             engine.stop()

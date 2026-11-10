@@ -47,6 +47,8 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="adresse d'écoute (défaut : 127.0.0.1, accessible uniquement depuis la machine)")
     g.add_argument("--lecture-seule", action="store_true",
                    help="moteur en essai à blanc permanent : rien n'est ajouté, supprimé, rangé ni notifié")
+    g.add_argument("--desactiver-2fa", action="store_true",
+                   help="secours : désactive la double authentification de l'interface (téléphone perdu), puis quitte")
     p.add_argument("--version", action="version", version=f"c411-autodl {__version__}")
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args(argv)
@@ -80,6 +82,18 @@ def main(argv=None) -> None:
 
     # Configuration : donnees/config.json s'il existe (géré par l'interface), sinon .env + environnement
     store = ConfigStore()
+
+    if args.desactiver_2fa:
+        from .web.auth import Auth
+        auth = Auth()
+        if not auth.has_admin():
+            sys.exit("Aucun compte d'interface n'existe encore.")
+        if auth.reset_totp():
+            log.warning("Double authentification de l'interface désactivée depuis la ligne de commande")
+            print("Double authentification désactivée : la connexion ne demande plus que le mot de passe.")
+        else:
+            print("La double authentification n'était pas activée.")
+        return
 
     if args.interface:
         from .web import serve

@@ -45,7 +45,24 @@
       </div>
       <div class="test-results" id="test-results" aria-live="polite"></div>
     </form>
+
+    {% if groupe == "domaine" %}
+    <section class="domaine" id="domaine" aria-labelledby="titre-verifs">
+      <header class="domaine-head">
+        <h2 id="titre-verifs">Vérifications</h2>
+        <div class="domaine-actions">
+          <button class="btn btn-sm" type="button" id="domaine-verifier">Vérifier maintenant</button>
+          <button class="btn btn-sm btn-ghost" type="button" id="domaine-renvoyer" title="Redemande à l'assistant d'appliquer la configuration">Relancer l'assistant</button>
+        </div>
+      </header>
+      <ol class="steps" id="domaine-etapes" aria-live="polite">
+        <li class="step"><span class="skeleton w-60"></span></li>
+      </ol>
+      <p class="muted small">Mis à jour toutes les 10 secondes. L'assistant serveur vérifie aussi le certificat toutes les 5 minutes.</p>
+    </section>
+    {% endif %}
   </section>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='config.js') }}?v={{ version }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='config.js') }}?v={{ version }}" defer></script>
+{% if groupe == "domaine" %}<script src="{{ url_for('static', path='domaine.js') }}?v={{ version }}" defer></script>{% endif %}{% endblock %}

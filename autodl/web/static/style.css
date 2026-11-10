@@ -522,7 +522,7 @@ body.auth {
   /* navigation en barre d'onglets en bas d'écran, à portée de pouce */
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0;
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
     padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom));
     background: rgba(13, 17, 23, .94); backdrop-filter: blur(14px);
     border-top: 1px solid var(--line);
@@ -622,4 +622,51 @@ body.auth {
   .table-releves tr { grid-template-columns: 1fr 1fr 1fr; }
   .table-releves .cell-jour { grid-column: 1 / -1; font-weight: 600; }
   .table-releves .num { text-align: left; }
+}
+
+/* ---------------------------------------------------------------- accès par domaine : étapes */
+.domaine { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: 1.4rem; display: grid; gap: 1rem; }
+.domaine-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; }
+.domaine-head h2 { margin: 0; font-size: var(--fs-md, 1rem); }
+.domaine-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; counter-reset: step; }
+.step { display: grid; grid-template-columns: auto 1fr; gap: .8rem; align-items: start;
+        padding: .85rem 1rem; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--surface-2); }
+.step-icon { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px;
+             background: var(--surface-3); color: var(--text-3); }
+.step-body { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem; min-width: 0; }
+.step-body strong { font-size: var(--fs-sm); }
+.step-state { font: 600 var(--fs-xs)/1.6 var(--font); color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.step-body p { grid-column: 1 / -1; margin: 0; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.step-link { grid-column: 1 / -1; font-weight: 600; color: var(--accent); font-size: var(--fs-sm); }
+.step-ok .step-icon { background: var(--accent-soft); color: var(--accent); }
+.step-ok .step-state { color: var(--accent); }
+.step-alerte { border-color: rgba(245, 185, 66, .35); background: rgba(245, 185, 66, .06); }
+.step-alerte .step-icon, .step-alerte .step-state { color: var(--warn); }
+.step-alerte .step-icon { background: rgba(245, 185, 66, .14); }
+.step-erreur { border-color: rgba(255, 122, 122, .32); background: rgba(255, 122, 122, .05); }
+.step-erreur .step-icon, .step-erreur .step-state { color: var(--danger); }
+.step-erreur .step-icon { background: rgba(255, 122, 122, .12); }
+.step-attente .step-icon { color: var(--info); }
+.step-attente .step-state { color: var(--info); }
+
+/* ---------------------------------------------------------------- sécurité du compte */
+.securite { display: grid; gap: 1.4rem; max-width: 860px; }
+.secu-block { display: grid; gap: .8rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.secu-block h2 { margin: 0; font-size: 1rem; }
+.secu-block p { margin: 0; color: var(--text-2); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.secu-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: 1.1rem; color: var(--text-2); }
+.secu-steps li { display: grid; gap: .55rem; }
+.secret-key code { display: inline-block; font: 600 1.05rem/1.4 var(--mono); letter-spacing: .06em; color: var(--text);
+                   background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-sm);
+                   padding: .55rem .8rem; user-select: all; overflow-wrap: anywhere; }
+.secu-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; font-size: var(--fs-sm); color: var(--text-2); }
+.secu-list li { display: flex; gap: .55rem; align-items: flex-start; }
+.secu-list .icon { color: var(--accent); flex: none; margin-top: .1rem; }
+.form-inline-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto; align-items: end; max-width: 640px; }
+.input-code { font: 600 1.15rem/1 var(--mono); letter-spacing: .3em; }
+.tag-ok { background: var(--accent-soft); border-color: rgba(61, 220, 151, .35); color: var(--accent); }
+@media (max-width: 720px) {
+  .form-inline-grid { grid-template-columns: 1fr; }
+  .step-body { grid-template-columns: 1fr; }
 }

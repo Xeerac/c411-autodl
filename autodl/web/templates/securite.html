@@ -1,0 +1,74 @@
+{% extends "_app_layout.html" %}
+{% from "_icones.html" import icon with context %}
+{% block title %}Sécurité · c411-autodl{% endblock %}
+{% block nav_securite %}active{% endblock %}
+{% block content %}
+<section class="panel securite" aria-labelledby="titre-securite">
+  <header class="panel-head">
+    <div>
+      <h1 id="titre-securite">Sécurité du compte</h1>
+      <p class="muted small">Accès actuel : {% if domain %}tunnel SSH et <strong>https://{{ domain }}</strong>{% else %}tunnel SSH uniquement{% endif %}.</p>
+    </div>
+  </header>
+
+  {% if message == "active" %}<div class="alert alert-ok" role="status"><span class="alert-head">{{ icon("ok") }}Double authentification activée. Le code sera demandé à chaque connexion.</span></div>{% endif %}
+  {% if message == "desactive" %}<div class="alert alert-ok" role="status"><span class="alert-head">{{ icon("ok") }}Double authentification désactivée.</span></div>{% endif %}
+  {% if message == "code" %}<div class="alert alert-error" role="alert"><span class="alert-head">{{ icon("alerte") }}Code incorrect : vérifie que l'heure de ton téléphone est à jour, puis réessaie.</span></div>{% endif %}
+  {% if message == "refus" %}<div class="alert alert-error" role="alert"><span class="alert-head">{{ icon("alerte") }}Mot de passe ou code incorrect : rien n'a été changé.</span></div>{% endif %}
+
+  <div class="secu-block">
+    <h2>Double authentification</h2>
+    {% if totp_on %}
+      <p><span class="tag tag-ok">{{ icon("verrou") }}Activée</span> En plus du mot de passe, un code à 6 chiffres de ton application est demandé.</p>
+      <form method="post" action="/securite/2fa/desactiver" class="form form-inline-grid" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="field">
+          <label class="field-label" for="d-pass">Mot de passe</label>
+          <input id="d-pass" name="mot_de_passe" type="password" required autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label class="field-label" for="d-code">Code actuel</label>
+          <input id="d-code" name="code" required inputmode="numeric" maxlength="7" autocomplete="one-time-code" class="input-code">
+        </div>
+        <button class="btn" type="submit">Désactiver</button>
+      </form>
+      <p class="muted small">Téléphone perdu ? Sur le serveur : <code>python c411_autodl.py --desactiver-2fa</code> (avec Docker : <code>docker compose exec c411-autodl python c411_autodl.py --desactiver-2fa</code>).</p>
+    {% elif setup %}
+      <ol class="secu-steps">
+        <li>Dans ton application (Google Authenticator, Aegis, 2FAS, Bitwarden…), ajoute un compte <strong>avec une clé de configuration</strong>, et saisis :
+          <div class="secret-key"><code>{{ setup_key }}</code></div>
+          <span class="muted small">Type : basé sur le temps · 6 chiffres · 30 s. Sur ton téléphone, tu peux aussi <a href="{{ setup_uri }}">ouvrir directement l'application</a>.</span>
+        </li>
+        <li>Saisis le code à 6 chiffres qu'elle affiche, pour vérifier que tout fonctionne :
+          <form method="post" action="/securite/2fa/activer" class="form form-inline-grid" autocomplete="off">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <div class="field">
+              <label class="field-label" for="a-code">Code</label>
+              <input id="a-code" name="code" required inputmode="numeric" maxlength="7" autocomplete="one-time-code" autofocus class="input-code">
+            </div>
+            <button class="btn btn-primary" type="submit">Activer</button>
+          </form>
+        </li>
+      </ol>
+      <form method="post" action="/securite/2fa/annuler"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-ghost btn-sm" type="submit">Annuler</button></form>
+    {% else %}
+      <p><span class="tag">Désactivée</span> Recommandée si l'interface est accessible par un nom de domaine : même avec ton mot de passe, personne ne peut se connecter sans ton téléphone.</p>
+      <form method="post" action="/securite/2fa/preparer"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary" type="submit">{{ icon("verrou") }}Configurer</button></form>
+    {% endif %}
+  </div>
+
+  <div class="secu-block">
+    <h2>Protections actives</h2>
+    <ul class="secu-list">
+      <li>{{ icon("ok") }}Mot de passe haché (scrypt), jamais stocké en clair.</li>
+      <li>{{ icon("ok") }}5 échecs en 15 min depuis une même adresse : blocage de 15 min.</li>
+      {% if domain %}
+      <li>{{ icon("ok") }}Depuis Internet : 30 échecs en 15 min, toutes adresses confondues, bloquent les connexions par le domaine pendant 15 min (le tunnel reste ouvert).</li>
+      <li>{{ icon("ok") }}HTTPS obligatoire (HSTS), cookies envoyés uniquement en HTTPS, seul {{ domain }} est accepté.</li>
+      <li>{{ icon("ok") }}Pages exclues des moteurs de recherche.</li>
+      {% endif %}
+      <li>{{ icon("ok") }}Protection contre les requêtes falsifiées (CSRF) et en-têtes de sécurité stricts.</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

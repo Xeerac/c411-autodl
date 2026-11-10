@@ -80,6 +80,8 @@ GROUPS: dict[str, tuple[str, str]] = {
     "bilan": ("Bilan quotidien", "Résumé de la journée : volumes, ratio, rendement par type."),
     "notifications": ("Notifications", "Discord et Telegram."),
     "alertes": ("Alertes", "Être prévenu quand le programme est en panne."),
+    "domaine": ("Accès par domaine", "Ouvrir l'interface sur un nom de domaine en HTTPS. Par défaut, elle reste "
+                                     "accessible uniquement par le tunnel SSH."),
 }
 
 SETTINGS: tuple[Setting, ...] = (
@@ -218,6 +220,15 @@ SETTINGS: tuple[Setting, ...] = (
     # --- Alertes
     Setting("ALERTE_PANNE", "alert", "bool", True, "alertes", "Alerte en cas de panne"),
     Setting("ALERTE_APRES", "alert_after", "int", 3, "alertes", "Échecs avant l'alerte", minimum=1),
+
+    # --- Accès par domaine (interface web)
+    Setting("DOMAINE_ACTIF", "domain_on", "bool", False, "domaine", "Accès par nom de domaine",
+            "Désactivé : interface accessible uniquement par le tunnel SSH. Activé : en HTTPS sur ton domaine, "
+            "avec un certificat Let's Encrypt (nécessite Caddy et l'assistant serveur)."),
+    Setting("DOMAINE_NOM", "domain", "str", "", "domaine", "Nom de domaine",
+            "Domaine ou sous-domaine, par exemple c411.mondomaine.fr, avec un enregistrement A vers ce serveur."),
+    Setting("DOMAINE_NOTIF_CONNEXION", "domain_notify", "bool", True, "domaine", "Prévenir à chaque connexion",
+            "Notification Discord / Telegram quand quelqu'un se connecte à l'interface depuis Internet."),
 )
 
 BY_ENV: dict[str, Setting] = {s.env: s for s in SETTINGS}
@@ -319,6 +330,11 @@ def cross_check(cfg: dict) -> list[str]:
                       "(clé avec le scope « Profil (lecture) »), ou mets MIN_RATIO=0.")
     if not 0 <= cfg["bilan_heure"] <= 23:
         errors.append("BILAN_HEURE doit être compris entre 0 et 23")
+    if cfg["domain_on"]:
+        from .domaine import valid_domain
+        if not valid_domain(cfg["domain"]):
+            errors.append("DOMAINE_ACTIF est activé : indique un nom de domaine valide dans DOMAINE_NOM "
+                          "(par exemple c411.mondomaine.fr)")
     return errors
 
 

@@ -1,0 +1,17 @@
+{% extends "_auth_layout.html" %}
+{% block title %}Double authentification · c411-autodl{% endblock %}
+{% block card %}
+<h1>Code de vérification</h1>
+<p class="muted">Saisis le code à 6 chiffres affiché par ton application d'authentification.</p>
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="/connexion/code" class="form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field">
+    <label class="field-label" for="f-code">Code</label>
+    <input id="f-code" name="code" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7"
+           autocomplete="one-time-code" autofocus class="input-code">
+  </div>
+  <button class="btn btn-primary btn-block" type="submit">Valider</button>
+</form>
+<p class="muted small"><a href="/connexion">Revenir à la connexion</a></p>
+{% endblock %}
