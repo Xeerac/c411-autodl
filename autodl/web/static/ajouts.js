@@ -91,6 +91,10 @@
     }
   }
 
+  // Lien direct vers un filtre, par exemple /ajouts?etat=hr depuis le tableau de bord
+  const wanted = new URLSearchParams(location.search).get("etat");
+  if (wanted && [...$("f-etat").options].some((o) => o.value === wanted)) $("f-etat").value = wanted;
+
   ["f-type", "f-etat", "f-tri"].forEach((id) => $(id).addEventListener("change", () => { shown = PAGE; render(); }));
   $("f-recherche").addEventListener("input", () => { shown = PAGE; render(); });
   $("ajouts-plus").addEventListener("click", () => { shown += PAGE; render(); });

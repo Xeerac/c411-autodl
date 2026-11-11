@@ -39,7 +39,8 @@
   <div class="alert alert-error" id="last-error" role="alert" hidden></div>
 
   <div class="dash">
-    <section class="panel" aria-labelledby="titre-ajouts">
+    <div class="dash-main">
+      <section class="panel" aria-labelledby="titre-ajouts">
       <header class="panel-head">
         <h2 id="titre-ajouts">Derniers ajouts</h2>
         <span class="updated" id="tableau-maj"></span>
@@ -57,6 +58,20 @@
       </div>
     </section>
 
+    <section class="panel" aria-labelledby="titre-hitrun">
+      <header class="panel-head"><h2 id="titre-hitrun">Hit &amp; Run</h2><span class="updated"><span id="hitrun-total"></span> · <a href="/ajouts?etat=hr">tout voir</a></span></header>
+      <p class="panel-note">Règle de c411 : 72 h de seed ou un ratio de 1,0 par torrent. Seuls les torrents ajoutés par le programme sont suivis.</p>
+      <dl class="hr-counts" id="hitrun-compteurs">
+        <div class="hr-count is-ok"><dt>Quittes</dt><dd id="hr-quitte">–</dd></div>
+        <div class="hr-count"><dt>En seed</dt><dd id="hr-seed">–</dd></div>
+        <div class="hr-count"><dt>Téléchargement</dt><dd id="hr-telechargement">–</dd></div>
+        <div class="hr-count is-risk"><dt>À risque</dt><dd id="hr-risque">–</dd></div>
+      </dl>
+      <ul class="hr-list" id="hitrun-liste"></ul>
+    </section>
+
+    </div>
+
     <div class="dash-side">
       <section class="panel" aria-labelledby="titre-services">
         <header class="panel-head"><h2 id="titre-services">Services</h2></header>
@@ -71,18 +86,6 @@
         <div class="bars" id="types">
           <div class="skeleton-stack" aria-hidden="true"><span class="skeleton w-80"></span><span class="skeleton w-60"></span><span class="skeleton w-40"></span></div>
         </div>
-      </section>
-
-      <section class="panel" aria-labelledby="titre-hitrun">
-        <header class="panel-head"><h2 id="titre-hitrun">Hit &amp; Run</h2><span class="updated" id="hitrun-total"></span></header>
-        <p class="panel-note">Règle de c411 : 72 h de seed ou un ratio de 1,0 par torrent. Seuls les torrents ajoutés par le programme sont suivis.</p>
-        <dl class="hr-counts" id="hitrun-compteurs">
-          <div class="hr-count is-ok"><dt>Quittes</dt><dd id="hr-quitte">–</dd></div>
-          <div class="hr-count"><dt>En seed</dt><dd id="hr-seed">–</dd></div>
-          <div class="hr-count"><dt>Téléchargement</dt><dd id="hr-telechargement">–</dd></div>
-          <div class="hr-count is-risk"><dt>À risque</dt><dd id="hr-risque">–</dd></div>
-        </dl>
-        <ul class="hr-list" id="hitrun-liste"></ul>
       </section>
 
       <section class="panel" aria-labelledby="titre-actions">

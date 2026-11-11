@@ -310,7 +310,7 @@ body.auth {
 
 /* ---------------------------------------------------------------- tableau de bord : grille */
 .dash { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); gap: 1.25rem; align-items: start; }
-.dash-side { display: grid; gap: 1.25rem; min-width: 0; }
+.dash-side, .dash-main { display: grid; gap: 1.25rem; min-width: 0; }
 
 /* services */
 .services { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -680,7 +680,9 @@ body.auth {
 .hr-count.is-ok dd { color: var(--accent); }
 .has-risk .hr-count.is-risk { border-color: rgba(255, 122, 122, .4); background: rgba(255, 122, 122, .07); }
 .has-risk .hr-count.is-risk dd { color: var(--danger); }
-.hr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+.hr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem 1.6rem;
+           grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.hr-empty { grid-column: 1 / -1; }
 .hr-item { display: grid; gap: .3rem; min-width: 0; }
 .hr-name { font-size: var(--fs-sm); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hr-detail { color: var(--text-3); }
