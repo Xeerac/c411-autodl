@@ -19,6 +19,9 @@
       <select id="f-{{ f.env }}" name="{{ f.env }}">
         {% for c in f.choices %}<option value="{{ c }}" {% if (f.value or f.placeholder) == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
+    {% elif f.kind == 'profiles' %}
+      <textarea id="f-{{ f.env }}" name="{{ f.env }}" rows="5" spellcheck="false" class="mono"
+                placeholder="3010: formats=flac taille_max=2Go par_passage=3&#10;2030: taille_max=15Go seeders_max=10 par_passage=1 budget_jour=30Go">{{ f.value }}</textarea>
     {% elif f.kind == 'secret' %}
       <div class="secret">
         <input id="f-{{ f.env }}" name="{{ f.env }}" type="password" autocomplete="new-password" spellcheck="false"

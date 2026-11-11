@@ -138,15 +138,16 @@ strong { font-weight: 600; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------------------------------------------------------------- champs */
-input, select {
+input, select, textarea {
   font: inherit; color: var(--text); width: 100%;
   min-height: 42px; padding: .55rem .8rem;
   background: var(--bg); border: 1px solid var(--line-3); border-radius: var(--r-sm);
   transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
 }
-input::placeholder { color: var(--text-4); }
-input:hover, select:hover { border-color: #465567; }
-input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input::placeholder, textarea::placeholder { color: var(--text-4); }
+input:hover, select:hover, textarea:hover { border-color: #465567; }
+textarea.mono { font: 500 var(--fs-sm)/1.6 var(--mono); resize: vertical; min-height: 7.5rem; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 input:disabled { opacity: .5; }
 select {
   appearance: none; padding-right: 2.2rem; cursor: pointer;
@@ -419,7 +420,7 @@ body.auth {
 .env-name { font: 500 .7rem/1 var(--mono); color: var(--text-4); background: transparent; padding: 0; white-space: nowrap; }
 .req { color: var(--warn); font-style: normal; margin-left: .15rem; }
 .field-error { color: var(--danger) !important; }
-.has-error input, .has-error select { border-color: rgba(255, 122, 122, .6); }
+.has-error input, .has-error select, .has-error textarea { border-color: rgba(255, 122, 122, .6); }
 .secret { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .secret input { flex: 1 1 240px; }
 .erase { display: inline-flex; align-items: center; gap: .35rem; font-size: var(--fs-sm); color: var(--text-3); cursor: pointer; }

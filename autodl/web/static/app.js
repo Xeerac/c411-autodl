@@ -19,6 +19,8 @@
     panne:       ["En panne", "Plusieurs passages en échec", "Le programme continue de réessayer et te préviendra quand tout repartira."],
   };
   const SERVICE_ICONS = { qbittorrent: "serveur", crossseed: "lien", prowlarr: "radar" };
+  const sizeOf = (n) => n >= 1024 ** 4 ? `${(n / 1024 ** 4).toFixed(2)} To`
+    : n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} Go` : `${(n / 1024 ** 2).toFixed(0)} Mo`;
 
   const el = (tag, props = {}, children = []) => {
     const node = document.createElement(tag);
@@ -75,6 +77,11 @@
       gauge.classList.toggle("is-low", e.ratio <= e.min_ratio * 1.1);
       gauge.firstElementChild.style.transform = `scaleX(${Math.min(1, Math.max(0.03, e.ratio / (e.min_ratio * 2)))})`;
     }
+    // Sous le ratio : le minimum, et le budget de téléchargement du jour s'il est réglé
+    const parts = [];
+    if (e.min_ratio) parts.push(`minimum ${e.min_ratio.toFixed(2)}`);
+    if (e.budget) parts.push(`budget du jour ${sizeOf(e.budget.utilise)} / ${sizeOf(e.budget.limite)}`);
+    $("kpi-ratio-sub").textContent = parts.join(" · ");
     $("kpi-last-pass").textContent = fmtTime(e.last_pass_at);
     $("kpi-last-added").textContent = e.last_pass_at
       ? `${e.last_added} ajouté(s), ${e.total_added} depuis le démarrage` : "pas encore de passage";

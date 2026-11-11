@@ -46,7 +46,7 @@ def read_env_file(path: Path) -> dict[str, str]:
 class Setting:
     env: str                    # nom dans le .env
     key: str                    # clé interne (cfg[...])
-    kind: str                   # str, secret, int, float, bool, size, size_opt, words, list, regex, choice
+    kind: str                   # str, secret, int, float, bool, size, size_opt, words, list, regex, choice, profiles
     default: Any                # valeur par défaut, déjà convertie
     group: str                  # identifiant du groupe (GROUPS)
     label: str                  # libellé court
@@ -71,6 +71,8 @@ GROUPS: dict[str, tuple[str, str]] = {
     "qualite": ("Qualité", "Écarter les formats, groupes ou titres dont tu ne veux pas."),
     "ratio": ("Ratio", "Protection de ton ratio c411."),
     "limites": ("Limites et rythme", "Fréquence des passages, quantités et marges de sécurité."),
+    "categories": ("Catégories et budget", "Des réglages propres à chaque catégorie, et une limite de "
+                                           "téléchargement par jour pour protéger ton ratio."),
     "freeleech": ("Mode freeleech", "Recherche élargie quand un freeleech est actif sur ton compte."),
     "nettoyage": ("Nettoyage", "Retrait des torrents supprimés de c411."),
     "inactifs": ("Torrents inactifs", "Retrait des torrents qui n'envoient plus rien, après le temps de seed "
@@ -160,6 +162,16 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("RATTRAPAGE_MOTS", "queries", "list",
             ["epub", "pdf", "cbz", "cbr", "mobi", "azw3", "mp3", "m4b", "FR", "FRENCH", "MULTI", "NOTAG",
              "Tome", "T01"], "limites", "Mots-clés du rattrapage", advanced=True),
+
+    # --- Catégories et budget
+    Setting("PROFILS_CATEGORIES", "profiles", "profiles", {}, "categories", "Réglages par catégorie",
+            "Une ligne par catégorie, par exemple « 3010: formats=flac taille_max=2Go par_passage=3 ». "
+            "Réglages possibles : formats, mots_requis, mots_exclus, taille_min, taille_max, completes_min, "
+            "seeders_min, seeders_max, leechers_min, par_passage, budget_jour. Une famille (2000) vaut pour "
+            "toutes ses catégories (2030, 2040…). Le reste suit la configuration générale."),
+    Setting("BUDGET_JOUR", "budget_day", "size_opt", None, "categories", "Budget de téléchargement par jour",
+            "Ce que c411 compte en « reçu », toutes catégories confondues. Les freeleech ne comptent pas. "
+            "Vide = pas de limite. Exemple : 20Go."),
 
     # --- Mode freeleech
     Setting("FREELEECH_MODE", "fl_mode", "bool", False, "freeleech", "Activer le mode freeleech",
@@ -278,6 +290,9 @@ def parse_value(s: Setting, raw: str | None) -> Any:
             return re.compile(raw, re.IGNORECASE)
         except re.error as e:
             raise ValueError(f"{s.env} : expression régulière invalide ({e})") from None
+    if s.kind == "profiles":
+        from .profils import parse
+        return parse(raw)
     if s.kind == "choice":
         value = raw.lower()
         if value not in s.choices:

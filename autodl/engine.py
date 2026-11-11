@@ -67,9 +67,20 @@ class Engine:
             ratio_block=self.ctx.get("blocked"),
             freeleech=bool(self.ctx.get("freeleech")),
             min_ratio=self.cfg["min_ratio"],
+            budget=self._budget(),
         )
         status["state"] = self._state_name(status)
         return status
+
+    def _budget(self) -> dict | None:
+        """Budget de téléchargement du jour (si BUDGET_JOUR est réglé) : octets comptés et limite."""
+        limit = self.cfg.get("budget_day")
+        tracking = self.ctx.get("tracking")
+        if not limit or tracking is None:
+            return None
+        data = tracking.data.get("budget") or {}
+        used = data.get("total", 0) if data.get("jour") == time.strftime("%Y-%m-%d") else 0
+        return {"utilise": used, "limite": limit}
 
     def _state_name(self, s: dict) -> str:
         if s["running_pass"]:

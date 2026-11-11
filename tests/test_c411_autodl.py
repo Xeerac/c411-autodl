@@ -653,7 +653,7 @@ class TestSchema(unittest.TestCase):
         self.assertEqual(len(keys), len(set(keys)))
 
     def test_groupes_et_types_connus(self):
-        kinds = {"str", "secret", "int", "float", "bool", "size", "size_opt", "words", "list", "regex", "choice"}
+        kinds = {"str", "secret", "int", "float", "bool", "size", "size_opt", "words", "list", "regex", "choice", "profiles"}
         for s in config.SETTINGS:
             self.assertIn(s.group, config.GROUPS, s.env)
             self.assertIn(s.kind, kinds, s.env)

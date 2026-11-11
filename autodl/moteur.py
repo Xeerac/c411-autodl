@@ -11,6 +11,7 @@ from .c411 import C411, freeleech_sources
 from .commun import USER_AGENT, _duration, _human, infohash_of, log
 from .contenu import content_type, guess_type, qbit_category
 from .filtres import _ordered, _reject, _scan
+from .profils import Budget, effective
 
 
 def freeleech_cfg(cfg: dict) -> dict:
@@ -92,6 +93,10 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
     added = skipped = total_bytes = counted_bytes = 0
     added_items: list[dict] = []
     budget_bytes = free - min_free if free >= 0 else None
+    per_profile: dict[str, int] = {}  # ajouts de ce passage, par profil de catégorie
+    tracking = ctx.get("tracking")
+    budget = Budget(tracking, persist=not args.dry_run) if tracking is not None else None
+    budget_noted: set[str] = set()
 
     for it in _ordered(_scan(c411, args, cfg), cfg):
         if added >= cfg["max_per_run"]:
@@ -101,7 +106,12 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
         h = it["infohash"]
         if h and (h in in_client or state.has(h)):
             continue
-        reason = _reject(it, cfg)
+        eff, profile = effective(cfg, it["category"])  # réglages propres à la catégorie, s'il y en a
+        reason = _reject(it, eff)
+        if not reason and profile:
+            cap = cfg["profiles"][profile].get("max_per_run")
+            if cap is not None and per_profile.get(profile, 0) >= cap:
+                reason = f"maximum par passage de la catégorie {profile}"
         if reason:
             skipped += 1
             log.debug("ignoré (%s) : %s", reason, it["title"])
@@ -120,6 +130,16 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
                 skipped += 1
                 log.info("ignoré (ratio après téléchargement : %.3f) : %s", projected, it["title"])
                 continue
+        refused = budget.refuse(cfg, eff, profile, counted) if budget else None
+        if refused:
+            skipped += 1
+            if refused not in budget_noted:  # une seule fois par passage
+                budget_noted.add(refused)
+                (log.debug if args.boucle and refused == ctx.get("budget_noted") else log.info)(
+                    "Pause des ajouts jusqu'à demain : %s", refused)
+                ctx["budget_noted"] = refused
+            log.debug("ignoré (%s) : %s", refused, it["title"])
+            continue
 
         kind = content_type(it["category"], it["title"])
         category = qbit_category(kind, cfg)
@@ -130,6 +150,10 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
             added += 1
             total_bytes += it["size"]
             counted_bytes += counted
+            if budget:
+                budget.spend(profile, counted)
+            if profile:
+                per_profile[profile] = per_profile.get(profile, 0) + 1
             continue
 
         try:
@@ -155,6 +179,10 @@ def run_once(args, cfg: dict, ctx: dict) -> int:
         added += 1
         total_bytes += it["size"]
         counted_bytes += counted
+        if budget:
+            budget.spend(profile, counted)
+        if profile:
+            per_profile[profile] = per_profile.get(profile, 0) + 1
         added_items.append(it)
         log.info("+ %s (%s, %d complétés, %d seeders, %s leechers)", it["title"], _human(it["size"]),
                  it["completed"], it["seeders"], it["leechers"] if it["leechers"] >= 0 else "?")
