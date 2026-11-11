@@ -1,24 +1,30 @@
-# Lancement de c411-autodl avec Docker :
-#   cp .env.example .env        puis remplis-le
-#   mkdir -p donnees
-#   docker compose up -d --build
-#   docker compose logs c411-autodl | grep "code d'installation"
+# Lancement de c411-autodl avec Docker, sans cloner le dépôt :
+#   1. Mets ce fichier et .env.example dans un dossier, par exemple ~/c411-autodl
+#   2. cp .env.example .env        puis remplis-le
+#   3. mkdir -p donnees
+#   4. docker compose up -d
+#   5. docker compose logs c411-autodl | grep "code d'installation"
 # Puis ouvre l'interface web par un tunnel SSH sur le port 8411 (voir le README).
 #
+# Mise à jour :  docker compose pull && docker compose up -d   (tes réglages et tes stats sont conservés)
+#
+# Tu préfères construire l'image toi-même depuis le dépôt cloné ? Remplace la ligne « image » par
+# « build: . » puis lance : docker compose up -d --build
+#
 # Tu as déjà un docker-compose.yml (cross-seed, Prowlarr…) ? Copie simplement le bloc « c411-autodl »
-# dedans, en adaptant les chemins de « build » et « volumes ».
+# dedans, en adaptant les chemins de « volumes ».
 
 services:
   c411-autodl:
-    build: .
-    image: c411-autodl:local
+    # Image publiée sur GitHub à chaque version (amd64 et arm64). Pour rester sur une version : :2.3 ou :2.3.1
+    image: ghcr.io/xeerac/c411-autodl:latest
     container_name: c411-autodl
     # Utilisateur qui possède le dossier donnees/ et le fichier .env (commande « id » pour connaître le tien)
     user: "1000:1000"
     # Interface web + moteur. Sans interface (comme en v1) : command: ["--boucle", "300"] et retire « ports ».
     command: ["--interface", "--hote", "0.0.0.0", "--port", "8411"]
     ports:
-      # Accessible uniquement depuis la machine : on y accède par un tunnel SSH, jamais depuis Internet
+      # Accessible uniquement depuis la machine : par un tunnel SSH, ou par ton domaine via l'assistant (voir le README)
       - "127.0.0.1:8411:8411"
     volumes:
       - ./.env:/app/.env:ro

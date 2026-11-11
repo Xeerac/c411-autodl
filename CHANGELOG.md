@@ -1,5 +1,16 @@
 # Historique des versions
 
+## v2.3.1 — 2026-11-11
+
+**Image Docker prête à l'emploi** (merci à u/Aldarone pour l'idée) :
+- publiée automatiquement sur GitHub à chaque version : `ghcr.io/xeerac/c411-autodl`, étiquettes `latest`, `2.3` et `2.3.1` ;
+- pour **amd64** (PC, VPS) et **arm64** (Raspberry Pi, serveurs ARM) ;
+- vérifiée avant publication : tests, démarrage, aucun `.env` ni donnée dans l'image, utilisateur non root ;
+- **plus besoin de cloner le dépôt** : le `docker-compose.yml` et le `.env` suffisent. Mise à jour : `docker compose pull && docker compose up -d` ;
+- la construction locale reste possible (`build: .`) ; `migrer_vers_docker.sh` continue de construire l'image depuis le dépôt cloné.
+
+Le programme lui-même ne change pas.
+
 ## v2.3.0 — 2026-11-10
 
 **Accès à l'interface par un nom de domaine** (optionnel, `DOMAINE_ACTIF` ; le tunnel SSH reste le mode par défaut) :

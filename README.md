@@ -317,25 +317,32 @@ Pour un essai rapide sans installer de service : `bash lancer_h24.sh`. Attention
 
 ### Avec Docker
 
-Si tu utilises déjà Docker (VPS, Unraid, Synology…), c411-autodl peut tourner dans un conteneur, à côté de cross-seed ou Prowlarr par exemple. L'image contient Python et l'[interface web](#interface-web), que le `docker-compose.yml` fourni lance directement.
+Si tu utilises déjà Docker (VPS, Unraid, Synology…), c411-autodl peut tourner dans un conteneur, à côté de cross-seed ou Prowlarr par exemple. Une **image prête à l'emploi** est publiée sur GitHub à chaque version : `ghcr.io/xeerac/c411-autodl`, pour **amd64** (PC, VPS) et **arm64** (Raspberry Pi, serveurs ARM). Elle contient Python et l'[interface web](#interface-web). **Pas besoin de cloner le dépôt.**
 
-**1. Récupérer le projet et le configurer :**
+**1. Récupérer les deux fichiers et configurer :**
 
 ```bash
-git clone https://github.com/Xeerac/c411-autodl.git ~/c411-autodl
-cd ~/c411-autodl
-cp .env.example .env
+mkdir -p ~/c411-autodl/donnees && cd ~/c411-autodl
+curl -fsSLO https://raw.githubusercontent.com/Xeerac/c411-autodl/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/Xeerac/c411-autodl/main/.env.example -o .env
 nano .env          # remplis ta configuration (étape 4)
-mkdir -p donnees
 ```
 
 **2. Tester, puis lancer :**
 
 ```bash
-docker compose run --rm c411-autodl --dry-run      # essai à blanc
-docker compose up -d --build                       # lancement en continu, avec l'interface web
+docker compose run --rm c411-autodl --dry-run      # essai à blanc (télécharge l'image la première fois)
+docker compose up -d                               # lancement en continu, avec l'interface web
 docker compose logs -f c411-autodl                 # journal en direct (Ctrl+C pour quitter)
 ```
+
+| Étiquette | Contenu |
+|---|---|
+| `latest` | La dernière version (celle du `docker-compose.yml` fourni) |
+| `2.3` | La dernière correction de la 2.3 : pas de changement majeur sans le vouloir |
+| `2.3.1` | Une version précise, qui ne bouge plus |
+
+**Tu préfères construire l'image toi-même** à partir du code ? Clone le dépôt (`git clone https://github.com/Xeerac/c411-autodl.git`), remplace la ligne `image:` du `docker-compose.yml` par `build: .`, puis lance `docker compose up -d --build`.
 
 Le conteneur tourne **avec l'utilisateur 1000**, pas en root. Le dossier `donnees/` et le fichier `.env` doivent donc lui être accessibles. Si ton utilisateur n'a pas l'identifiant 1000 (commande `id`), adapte la ligne `user:` du `docker-compose.yml`, ou bien :
 
@@ -363,12 +370,12 @@ Pour **revenir à systemd** : `sudo bash migrer_vers_docker.sh --retour`.
 
 **Toutes les commandes ponctuelles** passent par `docker compose run --rm c411-autodl …`, par exemple `--bilan`, `--nettoyage --dry-run`, `--inactifs --dry-run` ou `--recategoriser --dry-run`.
 
-**Tu as déjà un `docker-compose.yml`**, avec cross-seed, Prowlarr… ? Copie le bloc `c411-autodl` du fichier fourni dans le tien, en adaptant les chemins de `build:` et `volumes:`. Dans ce cas :
+**Tu as déjà un `docker-compose.yml`**, avec cross-seed, Prowlarr… ? Copie le bloc `c411-autodl` du fichier fourni dans le tien, en adaptant les chemins de `volumes:`. Dans ce cas :
 
 - **cross-seed** se joint par le nom de son conteneur et non par `localhost` : mets `CROSS_SEED_URL=http://cross-seed:2468` dans le `.env` ;
 - **qBittorrent sur la même machine** se joint de la même façon : par le nom de son conteneur s'il est dans Docker, par exemple `QBIT_URL=http://qbittorrent:8080`.
 
-**Mettre à jour :** `git pull && docker compose up -d --build`.
+**Mettre à jour :** `docker compose pull && docker compose up -d`. Si tu construis l'image toi-même : `git pull && docker compose up -d --build`.
 
 **Sans interface ?** Remplace la ligne `command:` du `docker-compose.yml` par `command: ["--boucle", "300"]` et retire le bloc `ports:`. C'est le fonctionnement de la v1.
 
@@ -395,7 +402,7 @@ Depuis la v2.0, c411-autodl a une **interface web** : un tableau de bord pour su
 **Avec Docker** (recommandé) : le `docker-compose.yml` fourni lance déjà l'interface. Elle écoute sur le port **8411, uniquement depuis la machine** (`127.0.0.1:8411`).
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 docker compose logs c411-autodl | grep "code d'installation"
 ```
 
@@ -452,6 +459,15 @@ Le tunnel SSH n'est pas toujours pratique. Tu peux rendre l'interface accessible
 **1. Installer l'assistant serveur** (une seule fois, en root, depuis le dossier `c411-autodl`) :
 
 ```bash
+sudo bash serveur/installer_domaine.sh
+```
+
+Tu utilises l'image Docker sans avoir cloné le dépôt ? Récupère d'abord le dossier `serveur/` à côté de ton `docker-compose.yml` :
+
+```bash
+cd ~/c411-autodl && mkdir -p serveur
+curl -fsSL https://raw.githubusercontent.com/Xeerac/c411-autodl/main/serveur/installer_domaine.sh -o serveur/installer_domaine.sh
+curl -fsSL https://raw.githubusercontent.com/Xeerac/c411-autodl/main/serveur/assistant_domaine.py -o serveur/assistant_domaine.py
 sudo bash serveur/installer_domaine.sh
 ```
 
@@ -766,7 +782,8 @@ git pull
 ```
 
 Sur un VPS avec le service installé, relance-le ensuite : `sudo systemctl restart c411-autodl`.
-Avec Docker : `git pull && docker compose up -d --build`.
+Avec Docker et l'image publiée : `docker compose pull && docker compose up -d` (pas besoin de `git pull`).
+Avec Docker et une image construite par toi : `git pull && docker compose up -d --build`.
 
 Ton `.env`, ta configuration de l'interface et ton historique (`donnees/`) ne sont jamais écrasés par une mise à jour.
 
@@ -916,7 +933,7 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 | `lancer_h24.bat` | Lancement en continu sous Windows |
 | `lancer_h24.sh` | Lancement en continu sous Linux |
 | `installer_service.sh` | Installation en service systemd (Linux) |
-| `Dockerfile`, `docker-compose.yml` | Lancement avec Docker |
+| `Dockerfile`, `docker-compose.yml` | Lancement avec Docker (image publiée sur `ghcr.io/xeerac/c411-autodl` à chaque version, ou construite par toi) |
 | `migrer_vers_docker.sh` | Bascule d'une installation systemd vers Docker, avec retour possible |
 | `serveur/` | Assistant d'accès par nom de domaine (`installer_domaine.sh`, `assistant_domaine.py`), installé sur la machine hôte |
 | `LICENSE` | Licence MIT |

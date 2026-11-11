@@ -88,6 +88,9 @@ cat > "$OVERRIDE" <<EOF
 # Créé par migrer_vers_docker.sh : réglages propres à cette machine (non versionné).
 services:
   c411-autodl:
+    # Image construite depuis ce dossier (dépôt cloné) : « git pull && docker compose up -d --build » met à jour
+    build: .
+    image: c411-autodl:local
     container_name: $CONTAINER
     user: "$OWNER"
     # Réseau de la machine : les adresses en localhost du .env (qBittorrent, cross-seed) restent valables
