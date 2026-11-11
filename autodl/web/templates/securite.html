@@ -35,9 +35,15 @@
       <p class="muted small">Téléphone perdu ? Sur le serveur : <code>python c411_autodl.py --desactiver-2fa</code> (avec Docker : <code>docker compose exec c411-autodl python c411_autodl.py --desactiver-2fa</code>).</p>
     {% elif setup %}
       <ol class="secu-steps">
-        <li>Dans ton application (Google Authenticator, Aegis, 2FAS, Bitwarden…), ajoute un compte <strong>avec une clé de configuration</strong>, et saisis :
-          <div class="secret-key"><code>{{ setup_key }}</code></div>
-          <span class="muted small">Type : basé sur le temps · 6 chiffres · 30 s. Sur ton téléphone, tu peux aussi <a href="{{ setup_uri }}">ouvrir directement l'application</a>.</span>
+        <li>Dans ton application (Google Authenticator, Aegis, 2FAS, Bitwarden…), <strong>scanne ce QR code</strong> :
+          <div class="qr-wrap">
+            <img class="qr" src="{{ setup_qr }}" alt="QR code de configuration de la double authentification" width="220" height="220">
+            <div class="qr-side">
+              <span class="muted small">Impossible de scanner ? Ajoute un compte <strong>avec une clé de configuration</strong> et saisis :</span>
+              <div class="secret-key"><code>{{ setup_key }}</code></div>
+              <span class="muted small">Type : basé sur le temps · 6 chiffres · 30 s. Sur ton téléphone, tu peux aussi <a href="{{ setup_uri }}">ouvrir directement l'application</a>.</span>
+            </div>
+          </div>
         </li>
         <li>Saisis le code à 6 chiffres qu'elle affiche, pour vérifier que tout fonctionne :
           <form method="post" action="/securite/2fa/activer" class="form form-inline-grid" autocomplete="off">

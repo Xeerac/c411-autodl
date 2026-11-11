@@ -581,7 +581,7 @@ class TestPagesTableau(WebCase):
         for action in ("essai", "bilan", "nettoyage_apercu", "inactifs_apercu", "rangement_apercu"):
             r = self.client.post(f"/api/action/{action}", headers={"X-CSRF-Token": self.csrf})
             self.assertEqual(r.json(), {"ok": True, "action": action})
-        self.assertEqual(self.client.post("/api/action/nettoyage", headers={"X-CSRF-Token": self.csrf}).status_code, 404)
+        self.assertEqual(self.client.post("/api/action/supprimer_tout", headers={"X-CSRF-Token": self.csrf}).status_code, 404)
 
     def test_tableau(self):
         self.engine.cfg = cfg()

@@ -14,6 +14,7 @@ import types
 
 from .commun import __version__, log
 from .contexte import build_context
+from .alertes import maybe_alerts
 from .hitrun import maybe_alert as maybe_hitrun
 from .inactifs import maybe_inactive, retire_inactive
 from .releves import maybe_releve
@@ -26,10 +27,15 @@ TASKS = {
     "nettoyage_apercu": "Aperçu du nettoyage",
     "inactifs_apercu": "Aperçu des inactifs",
     "rangement_apercu": "Aperçu du rangement",
+    # Actions réelles : demandées avec une confirmation dans l'interface, jamais en lecture seule
+    "nettoyage": "Nettoyage des torrents supprimés de c411",
+    "inactifs": "Retrait des torrents inactifs",
+    "rangement": "Rangement par type (sans déplacer les fichiers)",
 }
+REAL_TASKS = ("nettoyage", "inactifs", "rangement")
 ACTIONS = ("passage", "pause", "reprise", "recharger", "arret", *TASKS)
 # Informations d'état gardées quand la configuration change
-KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "last_inactive", "down_since", "categories_ok", "releves")
+KEEP_ON_RELOAD = ("last_ratio", "blocked", "freeleech", "last_cleanup", "last_inactive", "last_hitrun", "last_alerts", "down_since", "categories_ok", "releves")
 
 
 class Engine:
@@ -125,6 +131,7 @@ class Engine:
         maybe_inactive(self.args, self.cfg, self.ctx)
         _safe(maybe_crossseed, self.args, self.cfg, self.ctx)
         _safe(maybe_hitrun, self.args, self.cfg, self.ctx)  # torrents pas encore quittes qui ne seedent plus
+        _safe(maybe_alerts, self.args, self.cfg, self.ctx)  # disque, tracker c411, certificat SSL
         maybe_report(self.args, self.cfg, self.ctx)
         _safe(maybe_releve, self.args, self.cfg, self.ctx)  # relevé quotidien (ratio, envoyé, reçu)
         if time.monotonic() - self._last_beat >= 3600:  # signe de vie toutes les heures
@@ -149,7 +156,11 @@ class Engine:
         self._set(task=dict(task))
         log.info("Tâche lancée depuis l'interface : %s", task["nom"])
         dry = types.SimpleNamespace(**{**vars(self.args), "dry_run": True, "boucle": 0})
+        # En lecture seule, self.args est déjà en essai à blanc : une action « réelle » n'y change rien
+        real = types.SimpleNamespace(**{**vars(self.args), "boucle": 0})
         try:
+            if name in REAL_TASKS and self.read_only:
+                raise RuntimeError("interface en lecture seule : aucune action réelle possible")
             if name == "essai":
                 n = run_once(dry, self.cfg, self.ctx)
                 task["resultat"] = f"{n} torrent(s) seraient ajoutés avec les réglages actuels."
@@ -166,6 +177,18 @@ class Engine:
                 task["resultat"] = (f"{n} torrent(s) inactif(s) seraient retirés (au plus "
                                     f"{self.cfg['inactive_max_per_day']} par jour)." if n
                                     else "Aucun torrent inactif : rien à retirer.")
+            elif name == "nettoyage":
+                n = cleanup(real, self.cfg, self.ctx)
+                task["resultat"] = (f"{n} torrent(s) supprimé(s) de c411 retiré(s)." if n
+                                    else "Aucun torrent supprimé de c411 : rien à nettoyer.")
+            elif name == "inactifs":
+                n = retire_inactive(real, self.cfg, self.ctx)
+                task["resultat"] = (f"{n} torrent(s) inactif(s) retiré(s)." if n
+                                    else "Aucun torrent inactif à retirer (ou plafond du jour atteint).")
+            elif name == "rangement":
+                summary = recategorize(real, self.cfg, self.ctx, keep_location=True)
+                task["resultat"] = (", ".join(f"{n} rangé(s) dans {c}" for c, n in sorted(summary.items()))
+                                    if summary else "Tout est déjà bien rangé.")
             elif name == "rangement_apercu":
                 summary = recategorize(dry, self.cfg, self.ctx)
                 task["resultat"] = (", ".join(f"{n} vers {c}" for c, n in sorted(summary.items()))

@@ -398,6 +398,7 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
             request, session, totp_on=auth.totp_enabled(), setup=setup,
             setup_key=totp.grouped(setup) if setup else None,
             setup_uri=totp.uri(setup, session["user"]) if setup else None,
+            setup_qr=_qr_data_uri(totp.uri(setup, session["user"])) if setup else None,
             message=request.query_params.get("m"), domain=state["domain"]))
 
     @app.post("/securite/2fa/{etape}")
@@ -457,6 +458,23 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
             return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
         return dashboard.data(eng.cfg, eng.ctx["state"])
 
+    @app.get("/ajouts", response_class=HTMLResponse)
+    def ajouts_page(request: Request):
+        session = current(request)
+        if not session:
+            return redirect("/connexion")
+        return templates.TemplateResponse(request, "ajouts.html", page_context(request, session))
+
+    @app.get("/api/ajouts")
+    async def api_ajouts(request: Request):
+        if not current(request):
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        eng = state["engine"]
+        if eng is None:
+            return JSONResponse({"erreur": "moteur arrêté : configuration incomplète"}, status_code=409)
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(dashboard.additions, eng.cfg, eng.ctx["state"])
+
     @app.get("/releves", response_class=HTMLResponse)
     def releves_page(request: Request):
         session = current(request)
@@ -493,6 +511,13 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
         return {"ok": True}
 
     return app
+
+
+def _qr_data_uri(text: str) -> str:
+    """QR code en image intégrée (data:), autorisée par la politique de sécurité (img-src data:)."""
+    import base64
+    from .qrcode import svg
+    return "data:image/svg+xml;base64," + base64.b64encode(svg(text).encode()).decode()
 
 
 def _secrets_of(store) -> list[str]:

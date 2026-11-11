@@ -26,6 +26,7 @@ class Dashboard:
         self._cache_at = 0.0
         self._qbit: QBit | None = None
         self._qbit_key = None
+        self._torrents: list[dict] = []
 
     def data(self, cfg: dict, state) -> dict:
         with self._lock:
@@ -35,6 +36,13 @@ class Dashboard:
             self._cache_at = time.time()
             return self._cache
 
+    def additions(self, cfg: dict, state) -> dict:
+        """Tous les ajouts du programme (page « Ajouts »), avec leur état actuel dans qBittorrent."""
+        self.data(cfg, state)  # rafraîchit la lecture de qBittorrent si besoin (cache de 30 s)
+        with self._lock:
+            by_hash = {t["hash"].lower(): t for t in self._torrents}
+        return {"genere_le": time.time(), "ajouts": all_additions(state, by_hash)}
+
     def invalidate(self) -> None:
         with self._lock:
             self._cache = None
@@ -43,6 +51,7 @@ class Dashboard:
 
     def _build(self, cfg: dict, state) -> dict:
         torrents, qbit_status = self._qbittorrent(cfg)
+        self._torrents = torrents
         own = [t for t in torrents if cfg["own_tag"] in [x.strip() for x in t.get("tags", "").split(",")]]
         services = [qbit_status]
         if cfg["cs_url"]:
@@ -125,6 +134,32 @@ def recent_additions(state, by_hash: dict, limit: int = 12) -> list[dict]:
             "etat": _state_label(t.get("state", "")) if t else "absent de qBittorrent",
             "lien": f"https://c411.org/torrents/{h}",
         })
+    return out
+
+
+def all_additions(state, by_hash: dict) -> list[dict]:
+    """Chaque torrent ajouté par le programme, du plus récent au plus ancien."""
+    from .hitrun import status as hitrun_status
+    out = []
+    for h, entry in sorted(state.seen.items(), key=lambda kv: kv[1].get("added", ""), reverse=True):
+        t = by_hash.get(h)
+        size = int((t or {}).get("size") or entry.get("size") or 0)
+        uploaded = int(t.get("uploaded", 0)) if t else 0
+        row = {"hash": h, "titre": entry.get("title", "?"), "ajoute_le": entry.get("added", ""),
+               "type": entry.get("type") or guess_type(entry.get("title", "")),
+               "taille": size, "taille_txt": _human(size) if size else "–",
+               "envoye": uploaded, "envoye_txt": _human(uploaded) if t else "–",
+               "rendement": round(uploaded / size, 2) if t and size else None,
+               "present": bool(t), "lien": f"https://c411.org/torrents/{h}"}
+        if t:
+            hr = hitrun_status(t)
+            row.update(etat=_state_label(t.get("state", "")), categorie=t.get("category", ""),
+                       ratio=round(float(t.get("ratio") or 0), 2), seed_h=hr["seed_h"], hitrun=hr["etat"],
+                       seeders=t.get("num_complete"), leechers=t.get("num_incomplete"))
+        else:
+            row.update(etat="absent de qBittorrent", categorie="", ratio=None, seed_h=None, hitrun=None,
+                       seeders=None, leechers=None)
+        out.append(row)
     return out
 
 

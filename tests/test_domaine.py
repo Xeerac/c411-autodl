@@ -217,3 +217,34 @@ class TestHoteEtVisiteur(WebCase):
         self.assertEqual(client.get("/sante").status_code, 200)
         self.assertEqual(client.get("/sante", headers={"host": "pirate.example"}).status_code, 421)
         self.assertEqual(client.get("/sante", headers={"host": "c411.exemple.fr"}).status_code, 200)
+
+
+# --------------------------------------------------------------------------- QR code
+
+class TestQrCode(unittest.TestCase):
+    def test_lien_otpauth(self):
+        from autodl.web import qrcode
+        m = qrcode.matrix(totp.uri(totp.new_secret(), "alexis"))
+        self.assertEqual(len(m), 8 * 4 + 17)  # version 8 pour un lien d'environ 130 caractères
+        self.assertTrue(qrcode.svg("abc").startswith("<svg"))
+        with self.assertRaises(ValueError):
+            qrcode.matrix("x" * 300)
+
+    def test_identique_a_une_bibliotheque_de_reference(self):
+        try:
+            import qrcode as reference
+        except ImportError:
+            self.skipTest("bibliothèque qrcode absente (vérification facultative)")
+        from autodl.web import qrcode
+        for text in (totp.uri(totp.new_secret(), "alexis"), "hello", "x" * 100, "é" * 60):
+            data = text.encode()
+            for version in range(1, 11):
+                if qrcode._capacity(version) - (2 if version < 10 else 3) < len(data):
+                    continue
+                for mask in range(8):
+                    ref = reference.QRCode(version=version, mask_pattern=mask, border=0,
+                                           error_correction=reference.constants.ERROR_CORRECT_M)
+                    ref.add_data(data, optimize=0)
+                    ref.make(fit=False)
+                    self.assertEqual(ref.get_matrix(), qrcode.matrix(text, mask=mask, version=version),
+                                     (len(data), version, mask))

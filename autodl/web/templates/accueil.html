@@ -87,7 +87,7 @@
 
       <section class="panel" aria-labelledby="titre-actions">
         <header class="panel-head"><h2 id="titre-actions">Actions</h2></header>
-        <p class="panel-note">Les aperçus ne modifient rien : ils montrent ce qui serait fait, détails dans le journal.</p>
+        <p class="panel-note">Les aperçus ne modifient rien : ils montrent ce qui serait fait, détails dans le journal. « Exécuter » le fait vraiment, après confirmation.</p>
         <ul class="actions">
           <li class="action">
             <span class="action-icon">{{ icon("fiole") }}</span>
@@ -101,20 +101,33 @@
           </li>
           <li class="action">
             <span class="action-icon">{{ icon("balai") }}</span>
-            <span class="action-text"><strong>Aperçu du nettoyage</strong><span>Torrents supprimés de c411 qui seraient retirés.</span></span>
-            <button class="btn btn-sm" data-action="nettoyage_apercu">Lancer</button>
+            <span class="action-text"><strong>Nettoyage</strong><span>Torrents supprimés de c411 (double vérification), retirés selon NETTOYAGE_ACTION.</span></span>
+            <span class="action-buttons"><button class="btn btn-sm" data-action="nettoyage_apercu">Aperçu</button>
+              {% if not etat or not etat.read_only %}<button class="btn btn-sm btn-ghost" data-action="nettoyage" data-confirm="Retirer maintenant les torrents supprimés de c411 ? Selon ta configuration, leurs fichiers peuvent être supprimés (ceux partagés avec un cross-seed sont gardés).">Exécuter</button>{% endif %}</span>
           </li>
           <li class="action">
             <span class="action-icon">{{ icon("pause") }}</span>
-            <span class="action-text"><strong>Aperçu des inactifs</strong><span>Torrents qui n'envoient plus rien et seraient retirés.</span></span>
-            <button class="btn btn-sm" data-action="inactifs_apercu">Lancer</button>
+            <span class="action-text"><strong>Torrents inactifs</strong><span>Plus rien envoyé depuis INACTIFS_JOURS, au moins 96 h de seed, personne ne les attend.</span></span>
+            <span class="action-buttons"><button class="btn btn-sm" data-action="inactifs_apercu">Aperçu</button>
+              {% if not etat or not etat.read_only %}<button class="btn btn-sm btn-ghost" data-action="inactifs" data-confirm="Retirer maintenant les torrents inactifs ? Les règles habituelles s'appliquent : temps de seed minimum, aucun leecher, plafond par jour. Selon INACTIFS_ACTION, leurs fichiers peuvent être supprimés.">Exécuter</button>{% endif %}</span>
           </li>
           <li class="action">
             <span class="action-icon">{{ icon("dossiers") }}</span>
-            <span class="action-text"><strong>Aperçu du rangement</strong><span>Torrents qui changeraient de catégorie. Plusieurs minutes.</span></span>
-            <button class="btn btn-sm" data-action="rangement_apercu">Lancer</button>
+            <span class="action-text"><strong>Rangement par type</strong><span>Une catégorie qBittorrent par type. Plusieurs minutes. Aucun fichier n'est déplacé.</span></span>
+            <span class="action-buttons"><button class="btn btn-sm" data-action="rangement_apercu">Aperçu</button>
+              {% if not etat or not etat.read_only %}<button class="btn btn-sm btn-ghost" data-action="rangement" data-confirm="Ranger maintenant les torrents dans une catégorie par type ? Seule l'étiquette change : aucun fichier n'est déplacé.">Exécuter</button>{% endif %}</span>
           </li>
         </ul>
+        <dialog class="confirm" id="confirm" aria-labelledby="confirm-title">
+          <form method="dialog">
+            <h2 id="confirm-title">Confirmer l'action</h2>
+            <p id="confirm-text"></p>
+            <div class="confirm-actions">
+              <button class="btn" value="annuler" autofocus>Annuler</button>
+              <button class="btn btn-primary" value="ok">Exécuter</button>
+            </div>
+          </form>
+        </dialog>
         <div class="task" id="task" role="status" hidden>
           <span class="task-head" id="task-name"></span>
           <span class="task-result" id="task-result"></span>

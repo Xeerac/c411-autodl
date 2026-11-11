@@ -96,3 +96,85 @@ class TestReleveParType(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAlertes(unittest.TestCase):
+    def setUp(self):
+        from autodl import alertes
+        self.a = alertes
+        self.tmp = Path(tempfile.mkdtemp())
+        self.notifier = mock.Mock()
+
+    def ctx(self, torrents=(), free=1000 * 1024**3):
+        qbit = FakeQbit(list(torrents))
+        qbit.free_space = lambda: free
+        return {"qbit": qbit, "tracking": m.Tracking(self.tmp / "t.json"), "notifier": self.notifier}
+
+    def test_disque_une_fois_puis_reprise(self):
+        ctx = self.ctx(free=30 * 1024**3)
+        cfg = base_cfg(alert_disk_gb=50, alert_tracker=0, alert_cert=False)
+        self.assertEqual(len(self.a.maybe_alerts(args(), cfg, ctx, force=True)), 1)
+        self.assertEqual(self.a.maybe_alerts(args(), cfg, ctx, force=True), [])  # déjà signalé
+        ctx["qbit"].free_space = lambda: 200 * 1024**3  # de la place a été faite
+        self.a.maybe_alerts(args(), cfg, ctx, force=True)
+        ctx["qbit"].free_space = lambda: 30 * 1024**3
+        self.assertEqual(len(self.a.maybe_alerts(args(), cfg, ctx, force=True)), 1)  # de nouveau bas
+
+    def test_tracker_apres_deux_constats(self):
+        broken = [dict(tor(f"h{i}"), tracker="", state="stalledUP") for i in range(3)]
+        ctx = self.ctx(broken)
+        cfg = base_cfg(alert_disk_gb=0, alert_tracker=3, alert_cert=False)
+        self.assertEqual(self.a.maybe_alerts(args(), cfg, ctx, force=True), [])  # premier constat : on attend
+        sent = self.a.maybe_alerts(args(), cfg, ctx, force=True)
+        self.assertEqual(len(sent), 1)
+        self.assertIn("3 torrent(s)", sent[0])
+        self.assertEqual(self.a.maybe_alerts(args(), cfg, ctx, force=True), [])
+        # torrents en pause : pas une panne de tracker
+        ctx2 = self.ctx([dict(tor(f"p{i}"), tracker="", state="stoppedUP") for i in range(5)])
+        self.a.maybe_alerts(args(), cfg, ctx2, force=True)
+        self.assertEqual(self.a.maybe_alerts(args(), cfg, ctx2, force=True), [])
+
+    def test_certificat_qui_expire(self):
+        cfg = base_cfg(alert_disk_gb=0, alert_tracker=0, alert_cert=True, domain_on=True, domain="c411.exemple.fr")
+        status = {"vu_le": NOW - 600, "certificat": {"valide": True, "expire_ts": NOW + 5 * 86400, "expire": "x"}}
+        with mock.patch("autodl.domaine.helper_status", return_value=status):
+            sent = self.a.maybe_alerts(args(), cfg, self.ctx(), now=NOW, force=True)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("expire dans 5 jour(s)", sent[0])
+        status["certificat"]["expire_ts"] = NOW + 60 * 86400
+        with mock.patch("autodl.domaine.helper_status", return_value=status):
+            self.assertEqual(self.a.maybe_alerts(args(), cfg, self.ctx(), now=NOW, force=True), [])
+
+    def test_rien_en_essai_a_blanc(self):
+        self.assertEqual(self.a.maybe_alerts(args(dry_run=True), base_cfg(alert_disk_gb=50), self.ctx(free=1), force=True), [])
+
+
+class TestAjoutsEtActions(unittest.TestCase):
+    def test_liste_des_ajouts(self):
+        from autodl.tableau import all_additions
+        state = m.State(Path(tempfile.mkdtemp()) / "s.json")
+        state.add("a", "BD.[CBZ]-X", "bd", 10 * MB)
+        state.add("b", "Livre.[EPUB]-X", "ebook", MB)
+        torrent = dict(t("a", seed_h=80, ratio=2.0, size=10 * MB, uploaded=20 * MB), category="c411-bd")
+        rows = {r["hash"]: r for r in all_additions(state, {"a": torrent})}
+        self.assertEqual((rows["a"]["rendement"], rows["a"]["hitrun"], rows["a"]["categorie"]), (2.0, "quitte", "c411-bd"))
+        self.assertFalse(rows["b"]["present"])
+        self.assertEqual(rows["b"]["etat"], "absent de qBittorrent")
+
+    def test_action_reelle_refusee_en_lecture_seule(self):
+        from autodl import engine as engine_mod
+        e = engine_mod.Engine(base_cfg(pages=1), read_only=True, ctx={"qbit": FakeQbit(), "tracking": mock.Mock(data={})})
+        with mock.patch.object(engine_mod, "cleanup") as cleanup:
+            task = e.run_task("nettoyage")
+        self.assertFalse(task["ok"])
+        self.assertIn("lecture seule", task["resultat"])
+        cleanup.assert_not_called()
+
+    def test_rangement_reel_ne_deplace_rien(self):
+        from autodl import engine as engine_mod
+        e = engine_mod.Engine(base_cfg(pages=1), ctx={"qbit": FakeQbit(), "tracking": mock.Mock(data={})})
+        with mock.patch.object(engine_mod, "recategorize", return_value={}) as recat:
+            task = e.run_task("rangement")
+        self.assertTrue(task["ok"])
+        self.assertTrue(recat.call_args.kwargs["keep_location"])
+        self.assertFalse(recat.call_args.args[0].dry_run)

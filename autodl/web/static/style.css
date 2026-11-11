@@ -523,7 +523,7 @@ body.auth {
   /* navigation en barre d'onglets en bas d'écran, à portée de pouce */
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0;
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0;
     padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom));
     background: rgba(13, 17, 23, .94); backdrop-filter: blur(14px);
     border-top: 1px solid var(--line);
@@ -696,3 +696,31 @@ body.auth {
 .type-dot { fill: var(--surface); stroke: var(--tc, var(--t-autre)); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .table-types td, .table-types th { padding-top: .55rem; padding-bottom: .55rem; }
 @media (max-width: 900px) { .cat-grid { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- actions réelles et confirmation */
+.action-buttons { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end; }
+.confirm { max-width: 440px; width: calc(100% - 2rem); padding: 1.4rem 1.5rem; border-radius: var(--r-lg);
+           background: var(--surface); color: var(--text); border: 1px solid var(--line-2);
+           box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
+.confirm::backdrop { background: rgba(5, 8, 11, .7); backdrop-filter: blur(3px); }
+.confirm h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.confirm p { margin: 0 0 1.2rem; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.55; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: .5rem; }
+
+/* ---------------------------------------------------------------- page Ajouts */
+.ajouts-head h1 { margin: 0; }
+.filters { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+.col-ratio { width: 4.5rem; } .col-seed { width: 4.5rem; }
+.table-ajouts .col-etat { width: 10rem; }
+.table-ajouts tr.is-absent { opacity: .55; }
+.hr-tag { display: inline-block; margin-left: .4rem; padding: .1rem .4rem; border-radius: 999px; font-size: var(--fs-xs);
+          background: var(--surface-3); color: var(--text-2); }
+.hr-tag.is-bad { background: rgba(255, 122, 122, .14); color: var(--danger); }
+.ajouts-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1rem; }
+@media (max-width: 900px) { .filters { grid-template-columns: 1fr 1fr; } .filters input { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .table-ajouts tr { grid-template-columns: auto auto auto auto 1fr; } }
+
+/* ---------------------------------------------------------------- QR code (double authentification) */
+.qr-wrap { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
+.qr { width: 220px; height: 220px; border-radius: var(--r-sm); background: #fff; image-rendering: pixelated; flex: none; }
+.qr-side { display: grid; gap: .55rem; flex: 1 1 260px; min-width: 0; }

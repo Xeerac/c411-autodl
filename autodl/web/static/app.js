@@ -220,8 +220,19 @@
   }
 
   // ------------------------------------------------------------------ actions
+  // Actions réelles : confirmation dans une boîte de dialogue avant de lancer
+  const dialog = $("confirm");
+  const confirmed = (text) => new Promise((resolve) => {
+    if (!dialog || typeof dialog.showModal !== "function") { resolve(window.confirm(text)); return; }
+    $("confirm-text").textContent = text;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"), { once: true });
+    dialog.showModal();
+  });
+
   document.querySelectorAll("[data-action]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (btn.dataset.confirm && !(await confirmed(btn.dataset.confirm))) return;
       btn.classList.add("is-busy");
       try {
         await api(`/api/action/${btn.dataset.action}`, { method: "POST", headers: { "X-CSRF-Token": csrf } });

@@ -232,6 +232,14 @@ SETTINGS: tuple[Setting, ...] = (
     # --- Alertes
     Setting("ALERTE_PANNE", "alert", "bool", True, "alertes", "Alerte en cas de panne"),
     Setting("ALERTE_APRES", "alert_after", "int", 3, "alertes", "Échecs avant l'alerte", minimum=1),
+    Setting("ALERTE_DISQUE_GO", "alert_disk_gb", "int", 50, "alertes", "Alerte espace disque (Go)",
+            "Notification quand la seedbox passe sous ce nombre de Go libres. 0 = désactivée.", minimum=0),
+    Setting("ALERTE_TRACKER", "alert_tracker", "int", 10, "alertes", "Alerte tracker c411 (torrents)",
+            "Notification quand au moins ce nombre de torrents n'a plus de tracker fonctionnel depuis plus "
+            "d'une heure (maintenance de c411, passkey changée…). 0 = désactivée.", minimum=0),
+    Setting("ALERTE_CERTIFICAT", "alert_cert", "bool", True, "alertes", "Alerte certificat SSL",
+            "Accès par domaine : notification si le certificat expire dans moins de 14 jours, ou si "
+            "l'assistant serveur ne répond plus."),
     Setting("ALERTE_HIT_AND_RUN", "hr_alert", "bool", True, "alertes", "Alerte Hit & Run",
             "Notification quand un torrent pas encore quitte (72 h de seed ou ratio 1,0) ne seede plus : "
             "en pause, arrêté, en erreur, ou bloqué en téléchargement."),

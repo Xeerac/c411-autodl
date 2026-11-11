@@ -1,0 +1,52 @@
+{% extends "_app_layout.html" %}
+{% from "_icones.html" import icon with context %}
+{% block title %}Ajouts · c411-autodl{% endblock %}
+{% block nav_ajouts %}active{% endblock %}
+{% block content %}
+<section class="panel" aria-labelledby="titre-ajouts">
+  <header class="panel-head ajouts-head">
+    <div>
+      <h1 id="titre-ajouts">Ajouts</h1>
+      <p class="muted small" id="ajouts-resume">Tous les torrents ajoutés par le programme, avec leur état actuel dans qBittorrent.</p>
+    </div>
+    <span class="updated" id="ajouts-maj"></span>
+  </header>
+
+  <div class="filters" role="search">
+    <input type="search" id="f-recherche" placeholder="Rechercher un titre…" aria-label="Rechercher un titre">
+    <select id="f-type" aria-label="Type"><option value="">Tous les types</option></select>
+    <select id="f-etat" aria-label="État">
+      <option value="">Tous les états</option>
+      <option value="seed">Présents dans qBittorrent</option>
+      <option value="hr">Hit &amp; Run pas encore quitte</option>
+      <option value="risque">Hit &amp; Run à risque</option>
+      <option value="zero">Rien envoyé</option>
+      <option value="absent">Absents de qBittorrent</option>
+    </select>
+    <select id="f-tri" aria-label="Trier par">
+      <option value="date">Plus récents</option>
+      <option value="rendement">Meilleur rendement</option>
+      <option value="envoye">Plus envoyé</option>
+      <option value="taille">Plus gros</option>
+      <option value="titre">Titre (A → Z)</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table table-ajouts" id="liste-ajouts">
+      <colgroup><col class="col-titre"><col class="col-type"><col class="col-taille"><col class="col-envoye"><col class="col-ratio"><col class="col-seed"><col class="col-etat"></colgroup>
+      <thead><tr><th scope="col">Torrent</th><th scope="col">Type</th><th scope="col" class="num">Taille</th><th scope="col" class="num">Envoyé</th><th scope="col" class="num">Ratio</th><th scope="col" class="num">Seed</th><th scope="col">État</th></tr></thead>
+      <tbody>
+        {% for _ in range(6) %}
+        <tr aria-hidden="true"><td class="title-cell"><span class="skeleton w-80"></span></td><td><span class="skeleton w-60"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton"></span></td><td><span class="skeleton w-60"></span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="ajouts-foot">
+    <span class="muted small" id="ajouts-compte"></span>
+    <button class="btn btn-sm" type="button" id="ajouts-plus" hidden>Afficher 50 de plus</button>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='ajouts.js') }}?v={{ version }}" defer></script>{% endblock %}
