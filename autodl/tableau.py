@@ -12,6 +12,7 @@ import urllib.request
 
 from .commun import USER_AGENT, _human, log
 from .contenu import guess_type
+from .hitrun import summary as hitrun_summary
 from .qbit import QBit
 
 CACHE_SECONDS = 30
@@ -53,6 +54,7 @@ class Dashboard:
             "services": services,
             "ajouts": recent_additions(state, {t["hash"].lower(): t for t in torrents}),
             "types": type_stats(own, state),
+            "hitrun": hitrun_summary(own, cfg["own_tag"]),
             "totaux": {"torrents": len(own), "envoye": sum(int(t.get("uploaded", 0)) for t in own),
                        "envoye_txt": _human(sum(int(t.get("uploaded", 0)) for t in own)),
                        "taille_txt": _human(sum(int(t.get("size", 0)) for t in own))},

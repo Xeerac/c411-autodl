@@ -148,6 +148,60 @@
     box.replaceChildren(svg);
   }
 
+  // ------------------------------------------------------------------ rendement par catégorie
+  function typesChart(series) {
+    const box = $("chart-types");
+    const body = $("table-types").tBodies[0];
+    const withTypes = series.filter((r) => r.types);
+    const last = withTypes.at(-1);
+    if (!last) {
+      box.replaceChildren(el("div", { class: "empty" }, [icon("courbe"), el("strong", { text: "Le suivi par catégorie commence" }),
+        el("span", { text: "Chaque relevé note maintenant le rendement de chaque catégorie. La courbe se dessine au fil des jours." })]));
+      body.replaceChildren();
+      return;
+    }
+    const kinds = Object.keys(last.types).sort((a, b) => last.types[b].rendement - last.types[a].rendement);
+    body.replaceChildren(...kinds.map((k) => {
+      const t = last.types[k];
+      return el("tr", {}, [
+        el("td", {}, [el("span", { class: "chip", "data-type": k, text: k })]),
+        el("td", { class: "num", text: String(t.n) }),
+        el("td", { class: "num" }, [el("strong", { text: `×${t.rendement.toFixed(2)}` })]),
+        el("td", { class: "num", text: t.envoye_jour_txt || "dès demain" }),
+      ]);
+    }));
+    if (withTypes.length < 2) {
+      box.replaceChildren(el("div", { class: "empty" }, [icon("courbe"), el("strong", { text: "La courbe arrive demain" }),
+        el("span", { text: "Il faut deux relevés avec le détail par catégorie pour tracer l'évolution." })]));
+      return;
+    }
+    const vals = withTypes.flatMap((r) => kinds.map((k) => r.types[k]?.rendement).filter((v) => v != null));
+    let min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max((max - min) * 0.12, 0.1);
+    min = Math.max(0, min - pad); max += pad;
+    const n = withTypes.length;
+    const x = (i) => PAD.l + (W - PAD.l - PAD.r) * (i / (n - 1));
+    const y = (v) => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - min) / (max - min));
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart-svg" });
+    axes(svg, min, max, (v) => `×${v.toFixed(1)}`, dayLabels(withTypes, x));
+    for (const k of kinds) {
+      const pts = withTypes.map((r, i) => r.types[k] ? `${x(i).toFixed(1)},${y(r.types[k].rendement).toFixed(1)}` : null).filter(Boolean);
+      if (!pts.length) continue;
+      const g = svgEl("g", { "data-type": k, class: "type-series" });
+      g.append(svgEl("polyline", { points: pts.join(" "), class: "chart-line type-line" }));
+      withTypes.forEach((r, i) => {
+        if (!r.types[k]) return;
+        const dot = svgEl("circle", { cx: x(i), cy: y(r.types[k].rendement), r: i === n - 1 ? 4 : 3, class: "type-dot" });
+        const title = svgEl("title");
+        title.textContent = `${k}, ${fmtDay(r.jour)} : ×${r.types[k].rendement.toFixed(2)}`;
+        dot.append(title);
+        g.append(dot);
+      });
+      svg.append(g);
+    }
+    box.replaceChildren(svg);
+  }
+
   // ------------------------------------------------------------------ historique
   function cell(metric, r) {
     const main = metric === "ratio" ? r.ratio.toFixed(2) : r[`${metric}_txt`];
@@ -189,6 +243,7 @@
     const chrono = rows.slice(0, 30).reverse();
     lineChart(chrono);
     barChart(chrono);
+    typesChart(chrono);
     renderTable(rows);
   }
 

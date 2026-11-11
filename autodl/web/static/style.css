@@ -671,3 +671,28 @@ body.auth {
   .form-inline-grid { grid-template-columns: 1fr; }
   .step-body { grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------------- Hit & Run */
+.hr-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin: 0 0 1rem; }
+.hr-count { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: .55rem .6rem; }
+.hr-count dt { font-size: var(--fs-xs); color: var(--text-3); }
+.hr-count dd { margin: .15rem 0 0; font: 650 1.15rem/1.2 var(--font); font-variant-numeric: tabular-nums; }
+.hr-count.is-ok dd { color: var(--accent); }
+.has-risk .hr-count.is-risk { border-color: rgba(255, 122, 122, .4); background: rgba(255, 122, 122, .07); }
+.has-risk .hr-count.is-risk dd { color: var(--danger); }
+.hr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+.hr-item { display: grid; gap: .3rem; min-width: 0; }
+.hr-name { font-size: var(--fs-sm); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-detail { color: var(--text-3); }
+.hr-item.is-risque .hr-detail { color: var(--danger); }
+.hr-item .bar-fill { background: var(--accent); }
+.hr-item.is-risque .bar-fill { background: var(--danger); }
+.hr-item.is-telechargement .bar-fill { background: var(--info); }
+@media (max-width: 420px) { .hr-counts { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------------------------------------------------------------- relevés : rendement par catégorie */
+.cat-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.4rem; align-items: start; }
+.type-line { stroke: var(--tc, var(--t-autre)); }
+.type-dot { fill: var(--surface); stroke: var(--tc, var(--t-autre)); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.table-types td, .table-types th { padding-top: .55rem; padding-bottom: .55rem; }
+@media (max-width: 900px) { .cat-grid { grid-template-columns: 1fr; } }

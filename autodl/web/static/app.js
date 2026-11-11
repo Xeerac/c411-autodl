@@ -181,6 +181,27 @@
     $("kpi-uploaded-sub").textContent = `${totals.torrents} torrents · ${totals.taille_txt} au total`;
   }
 
+  function renderHitrun(h) {
+    if (!h) return;
+    for (const k of ["quitte", "seed", "telechargement", "risque"]) $(`hr-${k}`).textContent = h.compteurs[k];
+    $("hitrun-compteurs").classList.toggle("has-risk", h.compteurs.risque > 0);
+    $("hitrun-total").textContent = `${h.total} suivis`;
+    const list = $("hitrun-liste");
+    if (!h.a_surveiller.length) {
+      list.replaceChildren(el("li", { class: "hr-empty muted small", text: h.total ? "Tous les torrents sont quittes." : "Aucun torrent suivi pour l'instant." }));
+      return;
+    }
+    list.replaceChildren(...h.a_surveiller.map((r) => {
+      const fill = el("span", { class: "bar-fill" });
+      requestAnimationFrame(() => { fill.style.transform = `scaleX(${Math.max(r.progression, 2) / 100})`; });
+      return el("li", { class: `hr-item is-${r.etat}` }, [
+        el("span", { class: "hr-name", text: r.nom, title: r.nom }),
+        el("span", { class: "hr-detail small", text: r.detail }),
+        el("div", { class: "bar" }, [fill]),
+      ]);
+    }));
+  }
+
   async function refreshTableau() {
     const stamp = $("tableau-maj");
     try {
@@ -189,6 +210,7 @@
       renderServices(data.services);
       renderAdditions(data.ajouts);
       renderTypes(data.types, data.totaux);
+      renderHitrun(data.hitrun);
       stamp.textContent = `mis à jour à ${fmtTime(data.genere_le)}`;
       stamp.classList.remove("is-error");
     } catch (_) {

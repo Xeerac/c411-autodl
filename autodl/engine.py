@@ -14,6 +14,7 @@ import types
 
 from .commun import __version__, log
 from .contexte import build_context
+from .hitrun import maybe_alert as maybe_hitrun
 from .inactifs import maybe_inactive, retire_inactive
 from .releves import maybe_releve
 from .moteur import _safe, cleanup, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once, watchdog
@@ -123,6 +124,7 @@ class Engine:
         maybe_cleanup(self.args, self.cfg, self.ctx)
         maybe_inactive(self.args, self.cfg, self.ctx)
         _safe(maybe_crossseed, self.args, self.cfg, self.ctx)
+        _safe(maybe_hitrun, self.args, self.cfg, self.ctx)  # torrents pas encore quittes qui ne seedent plus
         maybe_report(self.args, self.cfg, self.ctx)
         _safe(maybe_releve, self.args, self.cfg, self.ctx)  # relevé quotidien (ratio, envoyé, reçu)
         if time.monotonic() - self._last_beat >= 3600:  # signe de vie toutes les heures

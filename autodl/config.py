@@ -232,6 +232,9 @@ SETTINGS: tuple[Setting, ...] = (
     # --- Alertes
     Setting("ALERTE_PANNE", "alert", "bool", True, "alertes", "Alerte en cas de panne"),
     Setting("ALERTE_APRES", "alert_after", "int", 3, "alertes", "Échecs avant l'alerte", minimum=1),
+    Setting("ALERTE_HIT_AND_RUN", "hr_alert", "bool", True, "alertes", "Alerte Hit & Run",
+            "Notification quand un torrent pas encore quitte (72 h de seed ou ratio 1,0) ne seede plus : "
+            "en pause, arrêté, en erreur, ou bloqué en téléchargement."),
 
     # --- Accès par domaine (interface web)
     Setting("DOMAINE_ACTIF", "domain_on", "bool", False, "domaine", "Accès par nom de domaine",
