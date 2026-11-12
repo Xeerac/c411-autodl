@@ -1,5 +1,22 @@
 # Historique des versions
 
+## v2.5.0 — 2026-11-12
+
+**Bot Discord** (optionnel, `DISCORD_BOT_ACTIF`), à la place du webhook :
+- **un salon par type de message** : ajouts, retraits, bilan quotidien, espace disque, tracker c411, certificat SSL, Hit & Run ; le reste va dans le salon principal ;
+- **commandes** : `/statut`, `/ratio`, `/bilan`, `/hitrun`, `/pause`, `/reprise`, `/passage`, `/aide` ;
+- commandes **réservées à un rôle Discord** (`DISCORD_ROLE`) sur ton serveur ; sans rôle choisi, tout est refusé ; jamais de bot en lecture seule ;
+- configuration à la souris : le bot fournit la liste des serveurs, salons et rôles, et le lien pour l'inviter ; bouton « Tester le bot » qui envoie un message dans chaque salon choisi ;
+- les messages automatiques passent par l'API de Discord : ils partent même si le bot est momentanément déconnecté ;
+- fonctionne aussi sans l'interface (`--boucle`) ; le bot redémarre tout seul si ses réglages changent ;
+- nouvelle dépendance de l'interface : `discord.py` (incluse dans l'image Docker). La ligne de commande seule reste sans dépendance.
+
+Le webhook (`DISCORD_WEBHOOK_URL`) reste disponible pour ceux qui ne veulent pas de bot.
+
+Interface : blocs repliables compacts dans la configuration (salons par type).
+
+- 190 tests (10 de plus).
+
 ## v2.4.0 — 2026-11-12
 
 **Réglages par catégorie et budget quotidien** (nouveau groupe « Catégories et budget ») :

@@ -24,6 +24,7 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Intégration cross-seed** (optionnel) : prévient cross-seed dès qu'un téléchargement est terminé.
 - ✅ **Mode freeleech** (optionnel) : pendant un freeleech sur ton compte, la recherche s'élargit automatiquement (plus de catégories, plus de torrents, plus gros), puisque télécharger ne coûte rien.
 - ✅ **Alertes** : panne du programme, espace disque bas, tracker c411 injoignable, certificat SSL qui expire, torrent à risque de Hit & Run.
+- ✅ **Bot Discord** (optionnel) : un salon par type de message, et des commandes (`/statut`, `/ratio`, `/pause`…) réservées au rôle de ton choix.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows, service systemd pour Linux ou **conteneur Docker**, avec redémarrage automatique.
 
@@ -214,7 +215,9 @@ Les torrents apparaissent dans qBittorrent, dans la catégorie `c411-ebook`, ave
 À chaque passage où quelque chose est ajouté, tu reçois **un seul message**. Il contient la liste des torrents avec un lien vers leur page c411, le volume total et le ratio estimé. Tu es aussi prévenu quand le programme se met en pause ou reprend à cause du ratio. Pour couper ces messages de pause, mets `NOTIF_PAUSES=false`.
 
 <details>
-<summary><b>Discord</b></summary>
+<summary><b>Discord (webhook, le plus simple)</b></summary>
+
+Tous les messages arrivent dans un seul salon. Pour un salon par type de message et des commandes, voir plutôt le [bot Discord](#bot-discord).
 
 1. Sur ton serveur Discord, ouvre les paramètres du salon voulu (icône ⚙️).
 2. Va dans **Intégrations**, puis **Webhooks**, puis **Nouveau webhook**.
@@ -783,7 +786,45 @@ Le premier bilan arrive le lendemain de l'activation, une fois qu'il y a une jou
 | `TELEGRAM_CHAT_ID` | *(vide)* | Ton identifiant Telegram |
 | `NOTIF_PAUSES` | `true` | Prévenir aussi des pauses et reprises liées au ratio |
 
+`DISCORD_WEBHOOK_URL` n'est utilisé que si le [bot Discord](#bot-discord) n'est pas activé.
+
 Sur Discord, les messages arrivent sous forme d'**embeds** : une barre de couleur selon le type de message (vert pour un ajout, orange pour une pause, rouge pour une panne…). Le **bilan quotidien** y est présenté en tuiles (envoyé, téléchargé, ajouts, ratio avec ▲ ou ▼, envoyé ÷ téléchargé, torrents en seed), avec un tableau du rendement par type et le podium des torrents qui ont le plus envoyé. Telegram reçoit le même contenu en texte.
+
+### Bot Discord
+
+Plutôt qu'un webhook, tu peux utiliser un **bot Discord**. Il envoie chaque type de message dans le salon de ton choix (ajouts, retraits, bilan, alertes…) et répond à des **commandes**. Il est inclus dans l'image Docker ; sans Docker, il fait partie de `requirements-interface.txt`.
+
+| Commande | Effet |
+|---|---|
+| `/statut` | État du programme, ratio, dernier et prochain passage, ajouts, budget du jour |
+| `/ratio` | Ratio c411, total envoyé et reçu, marge au-dessus du minimum |
+| `/bilan` | Le bilan depuis le dernier bilan quotidien, sans le remplacer |
+| `/hitrun` | Les torrents pas encore quittes (72 h de seed ou ratio de 1,0) |
+| `/pause`, `/reprise`, `/passage` | Mettre les ajouts en pause, les reprendre, lancer un passage tout de suite |
+| `/aide` | La liste des commandes, visible par toi seul |
+
+**Sécurité :** seules les personnes qui ont le **rôle choisi** (`DISCORD_ROLE`), sur **ton serveur**, peuvent utiliser les commandes. Sans rôle choisi, elles sont refusées à tout le monde. Une instance en lecture seule ne connecte jamais le bot. Le jeton est traité comme un mot de passe : jamais réaffiché, masqué dans le journal.
+
+**Créer le bot (une seule fois, environ 5 minutes) :**
+
+1. Va sur https://discord.com/developers/applications, puis **New Application**. Donne-lui un nom (par exemple « c411-autodl ») et, si tu veux, un avatar.
+2. Onglet **Bot**, puis **Reset Token** : copie le jeton. Ne le partage jamais.
+3. Dans l'interface, **Configuration → Bot Discord** : colle le jeton, puis clique sur **Charger les serveurs**.
+4. Clique sur **Inviter le bot sur un serveur** et choisis ton serveur : les permissions nécessaires (voir les salons, envoyer des messages, intégrer des liens, commandes) sont déjà dans le lien.
+5. Clique de nouveau sur **Charger les serveurs**, puis choisis le **serveur**, le **salon principal** et le **rôle** autorisé dans les listes. Dans le bloc « Un salon par type de message », choisis éventuellement un salon pour chaque type ; ceux que tu ne choisis pas partent dans le salon principal.
+6. Coche **Activer le bot Discord**, enregistre, puis clique sur **Tester le bot** : chaque salon reçoit un message qui indique ce qu'il recevra.
+7. Dans Discord, tape `/` dans un salon : les commandes de c411-autodl apparaissent.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `DISCORD_BOT_ACTIF` | `false` | `true` active le bot (il remplace alors le webhook) |
+| `DISCORD_BOT_TOKEN` | *(vide)* | Jeton du bot |
+| `DISCORD_SERVEUR` | *(vide)* | Identifiant du serveur |
+| `DISCORD_SALON` | *(vide)* | Identifiant du salon principal |
+| `DISCORD_ROLE` | *(vide)* | Identifiant du rôle autorisé à utiliser les commandes |
+| `DISCORD_SALON_AJOUTS`, `_RETRAITS`, `_BILAN`, `_DISQUE`, `_TRACKER`, `_SSL`, `_HIT_AND_RUN` | *(vide)* | Un salon par type de message (vide = salon principal) |
+
+Sans l'interface, les identifiants se copient dans Discord avec le **mode développeur** (Paramètres → Avancés), puis un clic droit sur le serveur, le salon ou le rôle → **Copier l'identifiant**.
 
 ### Accès par domaine
 
@@ -982,7 +1023,7 @@ Supprime le fichier `donnees/interface.json`, puis redémarre le programme. Un n
 |---|---|
 | `c411_autodl.py` | Le lanceur : c'est la commande à utiliser |
 | `autodl/` | Le programme : moteur, accès à c411 et qBittorrent, filtres, configuration, et l'interface web (`autodl/web/`) |
-| `requirements-interface.txt` | Dépendances de l'interface web, déjà incluses dans l'image Docker |
+| `requirements-interface.txt` | Dépendances de l'interface web et du bot Discord, déjà incluses dans l'image Docker |
 | `.env.example` | Modèle de configuration à copier en `.env` |
 | `lancer_h24.bat` | Lancement en continu sous Windows |
 | `lancer_h24.sh` | Lancement en continu sous Linux |
