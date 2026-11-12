@@ -251,7 +251,7 @@ def cleanup(args, cfg: dict, ctx: dict) -> int:
         done += 1
         log.info("🗑️ Supprimé de c411 (« %s ») : %s %s", removed_msg, t["name"], what)
         if ctx.get("notifier"):
-            ctx["notifier"].send(f"🗑️ **Supprimé de c411** ({removed_msg}) : {t['name']}, {what}.")
+            ctx["notifier"].send(f"🗑️ **Supprimé de c411** ({removed_msg}) : {t['name']}, {what}.", kind="retrait")
     return done
 
 
@@ -587,7 +587,7 @@ def maybe_report(args, cfg: dict, ctx: dict, force: bool = False) -> None:
     for line in text.replace("**", "").splitlines():
         log.info("%s", line)
     if ctx.get("notifier"):
-        ctx["notifier"].send(text, embed=report_embed(data))
+        ctx["notifier"].send(text, embed=report_embed(data), kind="bilan")
     if not force:
         tracking.data.update(bilan=snap, bilan_date=today)
         tracking.save()

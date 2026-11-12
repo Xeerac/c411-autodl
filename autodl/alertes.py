@@ -15,10 +15,10 @@ STOPPED = ("pausedUP", "stoppedUP", "pausedDL", "stoppedDL", "queuedUP", "queued
            "checkingDL", "checkingResumeData", "moving", "metaDL")
 
 
-def _send(ctx: dict, text: str) -> None:
+def _send(ctx: dict, text: str, kind: str) -> None:
     log.warning("%s", text.replace("**", "").replace("\n", " · "))
     if ctx.get("notifier"):
-        ctx["notifier"].send(text)
+        ctx["notifier"].send(text, kind=kind)
 
 
 def check_disk(cfg: dict, ctx: dict, memo: dict) -> str | None:
@@ -101,15 +101,16 @@ def maybe_alerts(args, cfg: dict, ctx: dict, now: float | None = None, force: bo
     before = dict(memo)
     sent = []
     ctx["qbit"].login(quiet=True)
-    for check in (lambda: check_disk(cfg, ctx, memo), lambda: check_tracker(cfg, ctx, memo),
-                  lambda: check_certificate(cfg, ctx, memo, now)):
+    for kind, check in (("disque", lambda: check_disk(cfg, ctx, memo)),
+                        ("tracker", lambda: check_tracker(cfg, ctx, memo)),
+                        ("ssl", lambda: check_certificate(cfg, ctx, memo, now))):
         try:
             text = check()
         except Exception as e:
             log.debug("Alerte : vérification impossible (%s)", e)
             continue
         if text:
-            _send(ctx, text)
+            _send(ctx, text, kind)
             sent.append(text)
     if memo != before:
         tracking.data["alertes"] = memo

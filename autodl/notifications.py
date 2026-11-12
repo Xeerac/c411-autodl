@@ -35,17 +35,33 @@ def finish_embed(embed: dict) -> dict:
     return embed
 
 
-class Notifier:
-    """Envoie des messages sur Discord (webhook) et/ou Telegram (bot). Tout est optionnel."""
+# Types de message qui peuvent avoir leur propre webhook Discord (sinon : le webhook principal)
+KINDS = {
+    "ajout": "Ajouts", "retrait": "Retraits (supprimés de c411, inactifs)", "bilan": "Bilan quotidien",
+    "disque": "Espace disque", "tracker": "Tracker c411", "ssl": "Certificat SSL", "hitrun": "Hit & Run",
+}
 
-    def __init__(self, discord_webhook: str, tg_token: str, tg_chat: str, pauses: bool):
+
+class Notifier:
+    """Envoie des messages sur Discord (webhook) et/ou Telegram (bot). Tout est optionnel.
+
+    `routes` : un webhook Discord par type de message (ajout, retrait, bilan…). Un type sans webhook propre
+    part sur le webhook principal ; sans webhook principal, il n'est pas envoyé sur Discord.
+    """
+
+    def __init__(self, discord_webhook: str, tg_token: str, tg_chat: str, pauses: bool,
+                 routes: dict | None = None):
         self.discord = discord_webhook
         self.tg_token, self.tg_chat = tg_token, tg_chat
         self.pauses = pauses
+        self.routes = {k: v for k, v in (routes or {}).items() if v}
 
     @property
     def enabled(self) -> bool:
-        return bool(self.discord or (self.tg_token and self.tg_chat))
+        return bool(self.discord or self.routes or (self.tg_token and self.tg_chat))
+
+    def webhook_for(self, kind: str | None) -> str:
+        return self.routes.get(kind or "", "") or self.discord
 
     def _post(self, url: str, payload: dict) -> None:
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={
@@ -53,16 +69,17 @@ class Notifier:
         with urllib.request.urlopen(req, timeout=20) as r:
             r.read()
 
-    def send(self, text: str, embed: dict | None = None) -> None:
+    def send(self, text: str, embed: dict | None = None, kind: str | None = None) -> None:
         """Texte au format Markdown simple : **gras** et [titre](lien).
 
         Discord reçoit un embed (celui fourni, sinon construit à partir du texte), Telegram le texte.
         """
-        if self.discord:
-            payload = {"embeds": [finish_embed(embed) if embed else text_embed(text)],
+        webhook = self.webhook_for(kind)
+        if webhook:
+            payload = {"embeds": [finish_embed(dict(embed)) if embed else text_embed(text)],
                        "allowed_mentions": {"parse": []}}  # jamais de @everyone, même dans un titre de torrent
             try:
-                self._post(self.discord, payload)
+                self._post(webhook, payload)
             except Exception as e:
                 log.warning("Notification Discord échouée : %s", e)
         if self.tg_token and self.tg_chat:
@@ -90,7 +107,7 @@ class Notifier:
             lines.append(f"• {name} — {_human(it['size'])}{free}")
         if len(items) > 15:
             lines.append(f"… et {len(items) - 15} autre(s)")
-        self.send("\n".join(lines))
+        self.send("\n".join(lines), kind="ajout")
 
 
 def _md_to_html(text: str) -> str:

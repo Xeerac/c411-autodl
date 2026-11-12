@@ -120,10 +120,27 @@ def test_notifications(cfg: dict) -> dict:
     notifier = make_notifier(cfg)
     if not notifier.enabled:
         return ko("Aucune notification configurée (webhook Discord ou bot Telegram).")
-    notifier.send("✅ **c411-autodl** : test de notification depuis l'interface.")
-    where = " et ".join(w for w, on in (("Discord", cfg["discord_webhook"]),
-                                        ("Telegram", cfg["telegram_token"] and cfg["telegram_chat"])) if on)
-    return ok(f"Message de test envoyé sur {where}. Vérifie qu'il est bien arrivé.")
+    from .notifications import KINDS
+    notifier.send("✅ **c411-autodl** : test de notification depuis l'interface (webhook principal).")
+    # Un message sur chaque webhook propre à un type, pour voir quel salon reçoit quoi (pas de doublon Telegram)
+    routed = {}
+    for kind, url in notifier.routes.items():
+        routed.setdefault(url, []).append(KINDS[kind])
+    if routed:
+        tg = (notifier.tg_token, notifier.tg_chat)
+        notifier.tg_token = notifier.tg_chat = ""
+        try:
+            for url, labels in routed.items():
+                kind = next(k for k, u in notifier.routes.items() if u == url)
+                notifier.send(f"✅ **c411-autodl** : test de notification\nCe salon recevra : {', '.join(labels)}.",
+                              kind=kind)
+        finally:
+            notifier.tg_token, notifier.tg_chat = tg
+    where = [w for w, on in (("Discord", cfg["discord_webhook"]),
+                             ("Telegram", cfg["telegram_token"] and cfg["telegram_chat"])) if on]
+    if routed:
+        where.append(f"{len(routed)} webhook(s) Discord par type")
+    return ok(f"Message de test envoyé sur {' et '.join(where)}. Vérifie qu'il est bien arrivé.")
 
 
 def _get(url: str, headers: dict | None = None) -> bytes:

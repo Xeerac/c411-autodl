@@ -82,5 +82,5 @@ def maybe_alert(args, cfg: dict, ctx: dict, now: float | None = None, force: boo
                           for r in new[:10])
         more = f"\n… et {len(new) - 10} autre(s)" if len(new) > 10 else ""
         ctx["notifier"].send(f"⚠️ **Hit & Run : {len(new)} torrent(s) à risque**\n{lines}{more}\n"
-                             "Relance-les dans qBittorrent : il faut 72 h de seed ou un ratio de 1,0.")
+                             "Relance-les dans qBittorrent : il faut 72 h de seed ou un ratio de 1,0.", kind="hitrun")
     return new

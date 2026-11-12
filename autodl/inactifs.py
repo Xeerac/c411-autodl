@@ -129,7 +129,7 @@ def retire_inactive(args, cfg: dict, ctx: dict, now: float | None = None) -> int
             shown = "\n".join(f"• {n}" for n in names[:10]) + (f"\n… et {len(names) - 10} autre(s)"
                                                                   if len(names) > 10 else "")
             ctx["notifier"].send(f"💤 **{done} torrent(s) inactif(s) retiré(s)** (rien envoyé depuis "
-                                 f"{cfg['inactive_days']} j) :\n{shown}")
+                                 f"{cfg['inactive_days']} j) :\n{shown}", kind="retrait")
     return done
 
 
