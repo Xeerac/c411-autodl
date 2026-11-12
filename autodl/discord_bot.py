@@ -21,6 +21,7 @@ COMMANDS = {
     "ratio": "Ton ratio c411, ce que tu as envoyé et reçu",
     "bilan": "Le bilan depuis le dernier bilan quotidien (sans le remplacer)",
     "hitrun": "Torrents pas encore quittes (72 h de seed ou ratio 1,0)",
+    "profil": "Ton profil c411 : niveau, quêtes, voies, Zen",
     "pause": "Met les ajouts en pause",
     "reprise": "Reprend les ajouts",
     "passage": "Lance un passage tout de suite",
@@ -219,6 +220,19 @@ class CommandBot:
                 await interaction.followup.send(embed=reply(hitrun_embed(await asyncio.to_thread(compute))))
             except Exception as e:
                 await interaction.followup.send(f"Suivi indisponible : {str(e)[:200]}")
+
+        @tree.command(name="profil", description=COMMANDS["profil"], guild=guild)
+        async def profil(interaction):
+            if not await check(interaction):
+                return
+            await interaction.response.defer()
+            from .profil import fetch, recap_embed
+            try:
+                data = await asyncio.to_thread(fetch, engine.ctx)
+                prev = engine.ctx["tracking"].data.get("profil_veille") if engine.ctx.get("tracking") else None
+                await interaction.followup.send(embed=reply(recap_embed(data, prev)))
+            except Exception as e:
+                await interaction.followup.send(f"Profil indisponible : {str(e)[:200]}")
 
         async def action(interaction, name: str, text: str):
             if not await check(interaction):

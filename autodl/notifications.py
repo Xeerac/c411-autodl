@@ -39,6 +39,7 @@ def finish_embed(embed: dict) -> dict:
 KINDS = {
     "ajout": "Ajouts", "retrait": "Retraits (supprimés de c411, inactifs)", "bilan": "Bilan quotidien",
     "disque": "Espace disque", "tracker": "Tracker c411", "ssl": "Certificat SSL", "hitrun": "Hit & Run",
+    "profil": "Récap du profil",
 }
 
 

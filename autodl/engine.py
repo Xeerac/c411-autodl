@@ -17,6 +17,7 @@ from .contexte import build_context
 from .alertes import maybe_alerts
 from .hitrun import maybe_alert as maybe_hitrun
 from .inactifs import maybe_inactive, retire_inactive
+from .profil import maybe_recap
 from .releves import maybe_releve
 from .moteur import _safe, cleanup, maybe_cleanup, maybe_crossseed, maybe_report, recategorize, run_once, watchdog
 
@@ -134,6 +135,7 @@ class Engine:
         _safe(maybe_alerts, self.args, self.cfg, self.ctx)  # disque, tracker c411, certificat SSL
         maybe_report(self.args, self.cfg, self.ctx)
         _safe(maybe_releve, self.args, self.cfg, self.ctx)  # relevé quotidien (ratio, envoyé, reçu)
+        _safe(maybe_recap, self.args, self.cfg, self.ctx)  # récap quotidien du profil c411
         if time.monotonic() - self._last_beat >= 3600:  # signe de vie toutes les heures
             ratio = self.ctx.get("last_ratio")
             log.info("Toujours actif : %d torrents ajoutés depuis le démarrage%s", self.total_added,

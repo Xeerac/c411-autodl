@@ -231,6 +231,9 @@ SETTINGS: tuple[Setting, ...] = (
     # --- Bilan
     Setting("BILAN_QUOTIDIEN", "bilan", "bool", False, "bilan", "Bilan quotidien"),
     Setting("BILAN_HEURE", "bilan_heure", "int", 8, "bilan", "Heure du bilan", minimum=0),
+    Setting("RECAP_PROFIL", "profil_recap", "bool", False, "bilan", "Récap quotidien du profil c411",
+            "À la même heure : niveau et XP, classe, quêtes et voies, Zen, ratio officiel et mesuré, équipe. "
+            "Nécessite la clé API Profil. Avec le bot Discord, il a son propre salon (Profil)."),
 
     # --- Notifications
     Setting("DISCORD_WEBHOOK_URL", "discord_webhook", "secret", "", "notifications", "Webhook Discord",
@@ -264,6 +267,8 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("DISCORD_SALON_SSL", "bot_channel_ssl", "discord_channel", "", "discord", "Certificat SSL",
             section="salons"),
     Setting("DISCORD_SALON_HIT_AND_RUN", "bot_channel_hitrun", "discord_channel", "", "discord", "Hit & Run",
+            section="salons"),
+    Setting("DISCORD_SALON_PROFIL", "bot_channel_profil", "discord_channel", "", "discord", "Profil",
             section="salons"),
 
     # --- Alertes
