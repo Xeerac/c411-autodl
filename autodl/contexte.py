@@ -29,6 +29,8 @@ def build_context(cfg: dict, dry_run: bool = False) -> dict:
 
 def make_notifier(cfg: dict) -> Notifier:
     from .notifications import KINDS
-    routes = {kind: cfg.get(f"discord_webhook_{kind}", "") for kind in KINDS}
-    return Notifier(cfg["discord_webhook"], cfg["telegram_token"], cfg["telegram_chat"], cfg["notif_pauses"],
-                    routes)
+    bot = None
+    if cfg.get("bot_on"):
+        channels = {kind: cfg[f"bot_channel_{kind}"] for kind in KINDS if cfg.get(f"bot_channel_{kind}")}
+        bot = {"token": cfg["bot_token"], "channel": cfg["bot_channel"], "channels": channels}
+    return Notifier(cfg["discord_webhook"], cfg["telegram_token"], cfg["telegram_chat"], cfg["notif_pauses"], bot)

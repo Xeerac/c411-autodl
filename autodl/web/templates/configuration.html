@@ -29,6 +29,15 @@
       <input type="hidden" name="csrf" value="{{ csrf }}">
       {% set basic = fields | rejectattr('advanced') | rejectattr('section') | list %}
       {% set advanced = fields | selectattr('advanced') | list %}
+      {% if groupe == 'discord' %}
+      <div class="bot-box" id="bot-box" aria-live="polite">
+        <span class="bot-status" id="bot-status">Colle le jeton du bot, puis clique sur « Charger les serveurs ».</span>
+        <span class="bot-actions">
+          <button class="btn btn-sm" type="button" id="bot-charger">Charger les serveurs</button>
+          <a class="btn btn-sm btn-ghost" id="bot-invite" href="#" target="_blank" rel="noopener noreferrer" hidden>Inviter le bot sur un serveur</a>
+        </span>
+      </div>
+      {% endif %}
       {% for f in basic %}{% include "_champ.html" %}{% endfor %}
       {% for sid, (stitle, sdesc) in sections.items() %}
         {% set items = fields | selectattr('section', 'equalto', sid) | list %}
@@ -81,4 +90,5 @@
 </div>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', path='config.js') }}?v={{ version }}" defer></script>
-{% if groupe == "domaine" %}<script src="{{ url_for('static', path='domaine.js') }}?v={{ version }}" defer></script>{% endif %}{% endblock %}
+{% if groupe == "domaine" %}<script src="{{ url_for('static', path='domaine.js') }}?v={{ version }}" defer></script>{% endif %}
+{% if groupe == "discord" %}<script src="{{ url_for('static', path='discord.js') }}?v={{ version }}" defer></script>{% endif %}{% endblock %}

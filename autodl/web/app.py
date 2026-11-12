@@ -386,6 +386,40 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
         transmit_domain()
         return {"ok": True}
 
+    # ------------------------------------------------------------------ bot Discord : listes pour le formulaire
+
+    @app.post("/api/discord/listes")
+    async def api_discord_listes(request: Request):
+        session = current(request)
+        if not session:
+            return JSONResponse({"erreur": "non connecté"}, status_code=401)
+        if not secrets.compare_digest(session["csrf"], request.headers.get("X-CSRF-Token", "")):
+            return JSONResponse({"erreur": "jeton invalide"}, status_code=403)
+        body = await request.json()
+        form = {k: str(v) for k, v in (body.get("valeurs") or {}).items()}
+        cfg, _ = formulaire.preview_cfg("discord", form, store)  # le jeton saisi, même pas encore enregistré
+        from starlette.concurrency import run_in_threadpool
+        from .. import discordapi
+
+        def lists() -> dict:
+            token = cfg["bot_token"]
+            if not token:
+                return {"ok": False, "message": "Colle d'abord le jeton du bot."}
+            try:
+                bot = discordapi.me(token)
+                guilds = discordapi.guilds(token)
+                out = {"ok": True, "bot": bot.get("username", "?"), "invitation": discordapi.invite_url(bot["id"]),
+                       "serveurs": guilds, "salons": [], "roles": []}
+                guild = form.get("DISCORD_SERVEUR") or cfg["bot_guild"] or (guilds[0]["id"] if len(guilds) == 1 else "")
+                if guild and any(g["id"] == guild for g in guilds):
+                    out.update(serveur=guild, salons=discordapi.channels(token, guild),
+                               roles=discordapi.roles(token, guild))
+                return out
+            except discordapi.DiscordError as e:
+                return {"ok": False, "message": str(e)}
+
+        return await run_in_threadpool(lists)
+
     # ------------------------------------------------------------------ sécurité du compte (double authentification)
 
     @app.get("/securite", response_class=HTMLResponse)

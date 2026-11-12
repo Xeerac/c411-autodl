@@ -749,9 +749,17 @@ body.auth {
 .compact-fields .field-top { grid-row: span 2; }
 .compact-fields .env-name { display: none; }
 .compact-fields .field small { grid-column: 2; font-size: var(--fs-xs); }
-.compact-fields input { min-height: 36px; padding: .4rem .7rem; }
+.compact-fields input, .compact-fields select { min-height: 36px; padding-top: .4rem; padding-bottom: .4rem; }
 @media (max-width: 720px) {
   .compact-fields .field { grid-template-columns: 1fr; }
   .compact-fields .field-top { grid-row: auto; }
   .compact-fields .field small { grid-column: 1; }
 }
+
+/* ---------------------------------------------------------------- page Bot Discord */
+.bot-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem;
+           padding: .85rem 1rem; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--surface-2); }
+.bot-status { font-size: var(--fs-sm); color: var(--text-2); flex: 1 1 260px; }
+.bot-status.is-ok { color: var(--accent); }
+.bot-status.is-ko { color: var(--danger); }
+.bot-actions { display: flex; gap: .4rem; flex-wrap: wrap; }

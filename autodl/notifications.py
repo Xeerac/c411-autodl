@@ -35,7 +35,7 @@ def finish_embed(embed: dict) -> dict:
     return embed
 
 
-# Types de message qui peuvent avoir leur propre webhook Discord (sinon : le webhook principal)
+# Types de message qui peuvent avoir leur propre salon Discord (bot), sinon : le salon principal
 KINDS = {
     "ajout": "Ajouts", "retrait": "Retraits (supprimés de c411, inactifs)", "bilan": "Bilan quotidien",
     "disque": "Espace disque", "tracker": "Tracker c411", "ssl": "Certificat SSL", "hitrun": "Hit & Run",
@@ -43,25 +43,33 @@ KINDS = {
 
 
 class Notifier:
-    """Envoie des messages sur Discord (webhook) et/ou Telegram (bot). Tout est optionnel.
+    """Envoie des messages sur Discord et/ou Telegram. Tout est optionnel.
 
-    `routes` : un webhook Discord par type de message (ajout, retrait, bilan…). Un type sans webhook propre
-    part sur le webhook principal ; sans webhook principal, il n'est pas envoyé sur Discord.
+    Discord : par le bot si `bot` est fourni (jeton, salon principal, un salon par type), sinon par le webhook.
     """
 
     def __init__(self, discord_webhook: str, tg_token: str, tg_chat: str, pauses: bool,
-                 routes: dict | None = None):
+                 bot: dict | None = None):
         self.discord = discord_webhook
         self.tg_token, self.tg_chat = tg_token, tg_chat
         self.pauses = pauses
-        self.routes = {k: v for k, v in (routes or {}).items() if v}
+        self.bot = bot if bot and bot.get("token") and bot.get("channel") else None
 
     @property
     def enabled(self) -> bool:
-        return bool(self.discord or self.routes or (self.tg_token and self.tg_chat))
+        return bool(self.discord or self.bot or (self.tg_token and self.tg_chat))
 
-    def webhook_for(self, kind: str | None) -> str:
-        return self.routes.get(kind or "", "") or self.discord
+    def channel_for(self, kind: str | None) -> str | None:
+        if not self.bot:
+            return None
+        return (self.bot.get("channels") or {}).get(kind or "") or self.bot["channel"]
+
+    def _discord(self, payload: dict, kind: str | None) -> None:
+        if self.bot:
+            from .discordapi import send
+            send(self.bot["token"], self.channel_for(kind), payload)
+        elif self.discord:
+            self._post(self.discord, payload)
 
     def _post(self, url: str, payload: dict) -> None:
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={
@@ -72,14 +80,14 @@ class Notifier:
     def send(self, text: str, embed: dict | None = None, kind: str | None = None) -> None:
         """Texte au format Markdown simple : **gras** et [titre](lien).
 
-        Discord reçoit un embed (celui fourni, sinon construit à partir du texte), Telegram le texte.
+        Discord reçoit un embed (celui fourni, sinon construit à partir du texte), dans le salon du type de
+        message (bot) ou par le webhook ; Telegram reçoit le texte.
         """
-        webhook = self.webhook_for(kind)
-        if webhook:
+        if self.bot or self.discord:
             payload = {"embeds": [finish_embed(dict(embed)) if embed else text_embed(text)],
                        "allowed_mentions": {"parse": []}}  # jamais de @everyone, même dans un titre de torrent
             try:
-                self._post(webhook, payload)
+                self._discord(payload, kind)
             except Exception as e:
                 log.warning("Notification Discord échouée : %s", e)
         if self.tg_token and self.tg_chat:

@@ -204,11 +204,30 @@ class Engine:
     # ------------------------------------------------------------------ au premier plan (ligne de commande)
 
     def run_forever(self) -> None:
+        """Au premier plan (ligne de commande) : la même boucle que l'interface, pour que les commandes du bot
+        Discord (pause, reprise, passage) fonctionnent aussi sans interface."""
+        self._start_bot()
         try:
-            while True:
-                time.sleep(self.step())
+            self._loop()
         except KeyboardInterrupt:
             log.info("Arrêt demandé : %d torrents ajoutés depuis le démarrage", self.total_added)
+        finally:
+            self._stop_bot()
+
+    # ------------------------------------------------------------------ bot Discord
+
+    def _start_bot(self) -> None:
+        self.bot = None
+        if self.read_only or not self.cfg.get("bot_on"):
+            return  # une instance en lecture seule ne doit jamais se connecter avec le vrai bot
+        from .discord_bot import CommandBot
+        self.bot = CommandBot(self)
+        self.bot.start()
+
+    def _stop_bot(self) -> None:
+        if getattr(self, "bot", None):
+            self.bot.stop()
+            self.bot = None
 
     # ------------------------------------------------------------------ en tâche de fond (interface web)
 
@@ -217,6 +236,7 @@ class Engine:
             return
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, name="moteur", daemon=True)
+        self._start_bot()
         self._thread.start()
 
     def submit(self, action: str, payload=None) -> None:
@@ -233,6 +253,8 @@ class Engine:
             self.apply(cfg)
 
     def apply(self, cfg: dict) -> None:
+        from .discord_bot import bot_settings
+        restart_bot = bot_settings(cfg) != bot_settings(self.cfg)
         kept = {k: self.ctx[k] for k in KEEP_ON_RELOAD if k in self.ctx}
         self.cfg = cfg
         self.ctx = build_context(cfg, dry_run=self.read_only)
@@ -243,8 +265,12 @@ class Engine:
             self.args.boucle = self.interval
         self._set(interval=self.interval)
         log.info("Nouvelle configuration appliquée")
+        if restart_bot:
+            self._stop_bot()
+            self._start_bot()
 
     def stop(self, timeout: float = 30) -> None:
+        self._stop_bot()
         self._stop.set()
         self._actions.put(("arret", None))
         if self._thread:

@@ -22,10 +22,16 @@
     {% elif f.kind == 'profiles' %}
       <textarea id="f-{{ f.env }}" name="{{ f.env }}" rows="5" spellcheck="false" class="mono"
                 placeholder="3010: formats=flac taille_max=2Go par_passage=3&#10;2030: taille_max=15Go seeders_max=10 par_passage=1 budget_jour=30Go">{{ f.value }}</textarea>
+    {% elif f.kind in ('discord_guild', 'discord_channel', 'discord_role') %}
+      <select id="f-{{ f.env }}" name="{{ f.env }}" data-discord="{{ f.kind[8:] }}" data-value="{{ f.value }}"
+              {% if f.section %}data-optional="1"{% endif %}>
+        <option value="">{{ '— salon principal —' if f.section else '— choisir —' }}</option>
+        {% if f.value %}<option value="{{ f.value }}" selected>{{ f.value }}</option>{% endif %}
+      </select>
     {% elif f.kind == 'secret' %}
       <div class="secret">
         <input id="f-{{ f.env }}" name="{{ f.env }}" type="password" autocomplete="new-password" spellcheck="false"
-               placeholder="{{ 'Enregistrée · laisse vide pour la garder' if f.stored else ('Vide : webhook principal' if f.section == 'webhooks' else 'Non renseignée') }}">
+               placeholder="{{ 'Enregistrée · laisse vide pour la garder' if f.stored else 'Non renseignée' }}">
         {% if f.stored %}
           <span class="badge badge-ok">{{ icon("ok") }}enregistrée</span>
           <label class="erase"><input type="checkbox" name="{{ f.env }}__effacer"> Effacer</label>

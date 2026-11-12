@@ -119,28 +119,42 @@ def test_prowlarr(cfg: dict) -> dict:
 def test_notifications(cfg: dict) -> dict:
     notifier = make_notifier(cfg)
     if not notifier.enabled:
-        return ko("Aucune notification configurée (webhook Discord ou bot Telegram).")
-    from .notifications import KINDS
-    notifier.send("✅ **c411-autodl** : test de notification depuis l'interface (webhook principal).")
-    # Un message sur chaque webhook propre à un type, pour voir quel salon reçoit quoi (pas de doublon Telegram)
-    routed = {}
-    for kind, url in notifier.routes.items():
-        routed.setdefault(url, []).append(KINDS[kind])
-    if routed:
-        tg = (notifier.tg_token, notifier.tg_chat)
-        notifier.tg_token = notifier.tg_chat = ""
-        try:
-            for url, labels in routed.items():
-                kind = next(k for k, u in notifier.routes.items() if u == url)
-                notifier.send(f"✅ **c411-autodl** : test de notification\nCe salon recevra : {', '.join(labels)}.",
-                              kind=kind)
-        finally:
-            notifier.tg_token, notifier.tg_chat = tg
-    where = [w for w, on in (("Discord", cfg["discord_webhook"]),
+        return ko("Aucune notification configurée (webhook Discord, bot Discord ou bot Telegram).")
+    notifier.send("✅ **c411-autodl** : test de notification depuis l'interface.")
+    where = [w for w, on in (("le bot Discord (salon principal)", notifier.bot),
+                             ("le webhook Discord", cfg["discord_webhook"] and not notifier.bot),
                              ("Telegram", cfg["telegram_token"] and cfg["telegram_chat"])) if on]
-    if routed:
-        where.append(f"{len(routed)} webhook(s) Discord par type")
     return ok(f"Message de test envoyé sur {' et '.join(where)}. Vérifie qu'il est bien arrivé.")
+
+
+def test_discord_bot(cfg: dict) -> dict:
+    """Jeton, accès au serveur, puis un message dans chaque salon choisi (avec ce qu'il recevra)."""
+    from . import discordapi
+    from .notifications import KINDS, finish_embed
+    token, guild = cfg["bot_token"], cfg["bot_guild"]
+    if not token:
+        return ko("Colle le jeton du bot (DISCORD_BOT_TOKEN).")
+    try:
+        bot = discordapi.me(token)
+        if guild and guild not in {g["id"] for g in discordapi.guilds(token)}:
+            return ko(f"Le bot {bot.get('username')} n'est pas sur ce serveur : invite-le avec le lien affiché en haut.")
+        if not cfg["bot_channel"]:
+            return ok(f"Jeton valide : bot {bot.get('username')}. Choisis maintenant le serveur et le salon principal.")
+        salons: dict[str, list[str]] = {cfg["bot_channel"]: []}
+        for kind, label in KINDS.items():
+            salons.setdefault(cfg.get(f"bot_channel_{kind}") or cfg["bot_channel"], []).append(label)
+        for channel, labels in salons.items():
+            text = ("Ce salon recevra : " + ", ".join(labels) + "." if labels
+                    else "Ce salon recevra les autres messages (pauses, pannes, freeleech, connexions).")
+            if channel == cfg["bot_channel"] and labels:
+                text += " Et tous les autres messages."
+            discordapi.send(token, channel, {"embeds": [finish_embed({"title": "✅ c411-autodl : test du bot",
+                                                                      "description": text, "color": 0x2ECC71})],
+                                             "allowed_mentions": {"parse": []}})
+    except discordapi.DiscordError as e:
+        return ko(f"Bot Discord : {e}.")
+    role = "" if cfg["bot_role"] else " Attention : aucun rôle n'est autorisé, les commandes seront refusées."
+    return ok(f"Bot {bot.get('username')} : message de test envoyé dans {len(salons)} salon(s).{role}")
 
 
 def _get(url: str, headers: dict | None = None) -> bytes:
@@ -157,4 +171,5 @@ SERVICES = {
     "crossseed": (test_crossseed, "integrations", "Tester cross-seed"),
     "prowlarr": (test_prowlarr, "integrations", "Tester Prowlarr"),
     "notifications": (test_notifications, "notifications", "Envoyer un message de test"),
+    "discord": (test_discord_bot, "discord", "Tester le bot"),
 }

@@ -46,7 +46,7 @@ def read_env_file(path: Path) -> dict[str, str]:
 class Setting:
     env: str                    # nom dans le .env
     key: str                    # clé interne (cfg[...])
-    kind: str                   # str, secret, int, float, bool, size, size_opt, words, list, regex, choice, profiles
+    kind: str                   # str, secret, int, float, bool, size, size_opt, words, list, regex, choice, profiles, discord_guild, discord_channel, discord_role
     default: Any                # valeur par défaut, déjà convertie
     group: str                  # identifiant du groupe (GROUPS)
     label: str                  # libellé court
@@ -65,9 +65,8 @@ class Setting:
 
 # Blocs repliables à l'intérieur d'un groupe : identifiant -> (titre, explication)
 SECTIONS: dict[str, tuple[str, str]] = {
-    "webhooks": ("Un salon Discord par type de message",
-                 "Optionnel. Colle le webhook d'un autre salon pour y envoyer ce type de message. "
-                 "Un champ vide = le webhook principal."),
+    "salons": ("Un salon par type de message",
+               "Optionnel. Choisis un autre salon pour un type de message. Non choisi = le salon principal."),
 }
 
 # Groupes, dans l'ordre d'affichage : identifiant -> (titre, description)
@@ -89,6 +88,8 @@ GROUPS: dict[str, tuple[str, str]] = {
                                      "l'interface s'adapte."),
     "bilan": ("Bilan quotidien", "Résumé de la journée : volumes, ratio, rendement par type."),
     "notifications": ("Notifications", "Discord et Telegram."),
+    "discord": ("Bot Discord", "Un bot qui envoie les messages dans les salons de ton choix et répond à des "
+                               "commandes (/statut, /ratio, /pause…). Remplace le webhook quand il est activé."),
     "alertes": ("Alertes", "Être prévenu quand le programme est en panne."),
     "domaine": ("Accès par domaine", "Ouvrir l'interface sur un nom de domaine en HTTPS. Par défaut, elle reste "
                                      "accessible uniquement par le tunnel SSH."),
@@ -233,25 +234,37 @@ SETTINGS: tuple[Setting, ...] = (
 
     # --- Notifications
     Setting("DISCORD_WEBHOOK_URL", "discord_webhook", "secret", "", "notifications", "Webhook Discord",
-            "Webhook principal : tous les messages, sauf ceux qui ont leur propre webhook ci-dessous."),
-    # Un webhook par type de message (vide = webhook principal) : un salon Discord par sujet
-    Setting("DISCORD_WEBHOOK_AJOUTS", "discord_webhook_ajout", "secret", "", "notifications",
-            "Ajouts", "Torrents ajoutés à la seedbox.", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_RETRAITS", "discord_webhook_retrait", "secret", "", "notifications",
-            "Retraits", "Supprimés de c411 et inactifs retirés.", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_BILAN", "discord_webhook_bilan", "secret", "", "notifications",
-            "Bilan quotidien", "", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_DISQUE", "discord_webhook_disque", "secret", "", "notifications",
-            "Espace disque", "", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_TRACKER", "discord_webhook_tracker", "secret", "", "notifications",
-            "Tracker c411", "", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_SSL", "discord_webhook_ssl", "secret", "", "notifications",
-            "Certificat SSL", "", section="webhooks"),
-    Setting("DISCORD_WEBHOOK_HIT_AND_RUN", "discord_webhook_hitrun", "secret", "", "notifications",
-            "Hit & Run", "", section="webhooks"),
+            "Utilisé quand le bot Discord n'est pas activé : tous les messages arrivent dans ce salon."),
     Setting("TELEGRAM_BOT_TOKEN", "telegram_token", "secret", "", "notifications", "Token du bot Telegram"),
     Setting("TELEGRAM_CHAT_ID", "telegram_chat", "str", "", "notifications", "Identifiant Telegram"),
     Setting("NOTIF_PAUSES", "notif_pauses", "bool", True, "notifications", "Prévenir des pauses liées au ratio"),
+
+    # --- Bot Discord
+    Setting("DISCORD_BOT_ACTIF", "bot_on", "bool", False, "discord", "Activer le bot Discord",
+            "Crée d'abord le bot sur discord.com/developers (voir le README), puis colle son jeton ci-dessous."),
+    Setting("DISCORD_BOT_TOKEN", "bot_token", "secret", "", "discord", "Jeton du bot",
+            "Discord Developer Portal > ton application > Bot > Reset Token."),
+    Setting("DISCORD_SERVEUR", "bot_guild", "discord_guild", "", "discord", "Serveur",
+            "Le serveur Discord où le bot est invité."),
+    Setting("DISCORD_SALON", "bot_channel", "discord_channel", "", "discord", "Salon principal",
+            "Reçoit tous les messages, sauf ceux qui ont leur propre salon ci-dessous."),
+    Setting("DISCORD_ROLE", "bot_role", "discord_role", "", "discord", "Rôle autorisé à utiliser les commandes",
+            "Seules les personnes qui ont ce rôle peuvent utiliser /pause, /reprise, /passage… Sans rôle choisi, "
+            "les commandes sont refusées à tout le monde."),
+    Setting("DISCORD_SALON_AJOUTS", "bot_channel_ajout", "discord_channel", "", "discord", "Ajouts",
+            section="salons"),
+    Setting("DISCORD_SALON_RETRAITS", "bot_channel_retrait", "discord_channel", "", "discord", "Retraits",
+            section="salons"),
+    Setting("DISCORD_SALON_BILAN", "bot_channel_bilan", "discord_channel", "", "discord", "Bilan quotidien",
+            section="salons"),
+    Setting("DISCORD_SALON_DISQUE", "bot_channel_disque", "discord_channel", "", "discord", "Espace disque",
+            section="salons"),
+    Setting("DISCORD_SALON_TRACKER", "bot_channel_tracker", "discord_channel", "", "discord", "Tracker c411",
+            section="salons"),
+    Setting("DISCORD_SALON_SSL", "bot_channel_ssl", "discord_channel", "", "discord", "Certificat SSL",
+            section="salons"),
+    Setting("DISCORD_SALON_HIT_AND_RUN", "bot_channel_hitrun", "discord_channel", "", "discord", "Hit & Run",
+            section="salons"),
 
     # --- Alertes
     Setting("ALERTE_PANNE", "alert", "bool", True, "alertes", "Alerte en cas de panne"),
@@ -293,6 +306,10 @@ def parse_value(s: Setting, raw: str | None) -> Any:
     Lève ValueError avec un message en français si la valeur est invalide.
     """
     raw = "" if raw is None else str(raw).strip()
+    if s.kind in ("discord_guild", "discord_channel", "discord_role"):
+        if raw and not re.fullmatch(r"\d{15,22}", raw):
+            raise ValueError(f"{s.env} : identifiant Discord invalide ({raw[:30]})")
+        return raw
     if s.kind in ("str", "secret"):
         return raw or s.default
     if not raw:
@@ -380,6 +397,11 @@ def cross_check(cfg: dict) -> list[str]:
                       "(clé avec le scope « Profil (lecture) »), ou mets MIN_RATIO=0.")
     if not 0 <= cfg["bilan_heure"] <= 23:
         errors.append("BILAN_HEURE doit être compris entre 0 et 23")
+    if cfg["bot_on"]:
+        missing = [env for env, key in (("DISCORD_BOT_TOKEN", "bot_token"), ("DISCORD_SERVEUR", "bot_guild"),
+                                        ("DISCORD_SALON", "bot_channel")) if not cfg[key]]
+        if missing:
+            errors.append("DISCORD_BOT_ACTIF est activé : renseigne aussi " + ", ".join(missing))
     if cfg["domain_on"]:
         from .domaine import valid_domain
         if not valid_domain(cfg["domain"]):
