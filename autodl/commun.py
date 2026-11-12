@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 
-__version__ = "2.6.0-beta.1"
+__version__ = "2.6.0-beta.2"
 
 
 # Dossier du programme (au-dessus du paquet autodl/) : on y trouve .env et donnees/

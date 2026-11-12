@@ -128,6 +128,7 @@ class CommandBot:
             log.warning("Bot Discord : discord.py n'est pas installé (pip install -r requirements-interface.txt)")
             return
         logging.getLogger("discord").setLevel(logging.WARNING)  # journal de discord.py : l'essentiel seulement
+        logging.getLogger("discord.client").setLevel(logging.ERROR)  # pas d'avertissement sur la voix (inutile ici)
         self._thread = threading.Thread(target=self._run, name="bot-discord", daemon=True)
         self._thread.start()
 
