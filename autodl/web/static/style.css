@@ -734,10 +734,9 @@ body.auth {
 .subsection { border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface-2); }
 .subsection summary { display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem; cursor: pointer; list-style: none; }
 .subsection summary::-webkit-details-marker { display: none; }
-.subsection summary::before { content: ""; width: .45rem; height: .45rem; flex: none; border-right: 2px solid var(--text-3);
-                              border-bottom: 2px solid var(--text-3); transform: rotate(-45deg);
-                              transition: transform var(--fast) var(--ease); }
-.subsection[open] summary::before { transform: rotate(45deg); }
+.subsection summary::before { content: "›"; flex: none; width: .8rem; color: var(--text-3); font-size: 1.1rem;
+                              line-height: 1; text-align: center; transition: transform var(--fast) var(--ease); }
+.subsection[open] summary::before { transform: rotate(90deg); }
 .subsection-title { font-weight: 600; font-size: var(--fs-sm); }
 .subsection-count { margin-left: auto; font-size: var(--fs-xs); color: var(--text-3); padding: .2rem .55rem;
                     border-radius: 999px; background: var(--surface-3); white-space: nowrap; }
