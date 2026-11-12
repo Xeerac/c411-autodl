@@ -16,12 +16,14 @@ Le programme surveille les catégories c411 de ton choix, par exemple eBooks ou 
 - ✅ **Protection du ratio** : rien n'est téléchargé si ton ratio passerait sous le minimum choisi. Le freeleech est pris en compte.
 - ✅ **Cible ce qui rapporte de l'upload** : ignore les torrents déjà sur-seedés et traite en priorité les plus demandés (beaucoup de leechers, peu de seeders).
 - ✅ **Filtres** : catégories, complétés, seeders, leechers, taille min/max, formats (epub, cbz…), mots requis ou exclus, groupes exclus, expression régulière.
+- ✅ **Réglages par catégorie et budget quotidien** : des filtres propres à chaque catégorie (musique en FLAC, films de 15 Go maximum…) et une limite de téléchargement par jour, sans compter les freeleech.
+- ✅ **Suivi Hit & Run** : où en est chaque torrent par rapport aux 72 h de seed ou au ratio de 1,0 exigés par c411, avec une alerte si l'un d'eux ne seede plus avant d'être quitte.
 - ✅ **Nettoyage automatique** (optionnel) : retire de qBittorrent les torrents supprimés de c411, avec une double vérification.
 - ✅ **Bilan quotidien** (optionnel) : volume téléchargé et envoyé, évolution du ratio, et **ce qui rapporte le plus** par type de contenu.
 - ✅ **Une catégorie qBittorrent par type** (optionnel) : `c411-ebook`, `c411-bd`, `c411-presse`…
 - ✅ **Intégration cross-seed** (optionnel) : prévient cross-seed dès qu'un téléchargement est terminé.
 - ✅ **Mode freeleech** (optionnel) : pendant un freeleech sur ton compte, la recherche s'élargit automatiquement (plus de catégories, plus de torrents, plus gros), puisque télécharger ne coûte rien.
-- ✅ **Alerte en cas de panne** : notification si le programme échoue plusieurs fois d'affilée, puis quand tout repart.
+- ✅ **Alertes** : panne du programme, espace disque bas, tracker c411 injoignable, certificat SSL qui expire, torrent à risque de Hit & Run.
 - ✅ **Notifications** Discord et/ou Telegram, en option.
 - ✅ **Fonctionne 24 h/24** : lanceur Windows, service systemd pour Linux ou **conteneur Docker**, avec redémarrage automatique.
 
@@ -389,10 +391,11 @@ Depuis la v2.0, c411-autodl a une **interface web** : un tableau de bord pour su
 
 ### Ce qu'on y trouve
 
-- **Tableau de bord** : l'état du programme (actif, en pause, freeleech, en panne), ton ratio avec une jauge, le volume envoyé par tes torrents, le dernier et le prochain passage. On y voit aussi l'état de qBittorrent, de cross-seed et de Prowlarr (ces deux derniers seulement s'ils sont configurés), les **derniers ajouts** avec ce qu'ils ont déjà envoyé, et le **rendement par type**.
-- **Actions** : passage immédiat, pause et reprise, essai à blanc, bilan, aperçu du nettoyage et aperçu du rangement. Les aperçus **ne modifient jamais rien**.
+- **Tableau de bord** : l'état du programme (actif, en pause, freeleech, en panne), ton ratio avec une jauge, le volume envoyé par tes torrents, le dernier et le prochain passage. On y voit aussi l'état de qBittorrent, de cross-seed et de Prowlarr (ces deux derniers seulement s'ils sont configurés), les **derniers ajouts** avec ce qu'ils ont déjà envoyé, le **rendement par type** et le **suivi Hit & Run** (torrents quittes, en seed, à risque). Si un budget quotidien est réglé, ce qu'il en reste s'affiche sous le ratio.
+- **Ajouts** : tous les torrents ajoutés par le programme, avec recherche, filtres (type, Hit & Run, rien envoyé, absents de qBittorrent…) et tri (date, rendement, volume envoyé, taille).
+- **Actions** : passage immédiat, pause et reprise, essai à blanc et bilan. Pour le nettoyage, le retrait des inactifs et le rangement par type : un **aperçu**, qui ne modifie jamais rien, et un bouton **Exécuter** qui le fait vraiment, après une **confirmation**. Le rangement depuis l'interface ne déplace aucun fichier. En lecture seule, aucune action réelle n'est possible.
 - **Configuration** : tous les réglages, rangés par thème, avec une explication sous chaque champ. Un bouton **« Tester »** vérifie chaque service (clés c411, qBittorrent, cross-seed, Prowlarr, notifications) **avant même d'enregistrer**. Les changements sont vérifiés, puis pris en compte **sans redémarrage**.
-- **Relevés** : chaque matin, ton ratio, ton total envoyé et ton total reçu sur c411 sont relevés et **comparés à la veille** (écart et pourcentage, ▲ en hausse, ▼ en baisse), avec la courbe du ratio jour après jour (un point par jour), l'envoyé de chaque journée et tout l'historique.
+- **Relevés** : chaque matin, ton ratio, ton total envoyé et ton total reçu sur c411 sont relevés et **comparés à la veille** (écart et pourcentage, ▲ en hausse, ▼ en baisse), avec la courbe du ratio jour après jour (un point par jour), l'envoyé de chaque journée, **le rendement de chaque catégorie au fil des jours** et tout l'historique.
 - **Sécurité** : double authentification optionnelle (code à 6 chiffres) et rappel des protections actives.
 - **Journal en direct**, avec filtres (ajouts, problèmes, freeleech, nettoyage, cross-seed) et recherche.
 - Un affichage adapté au **téléphone**, avec les onglets en bas de l'écran.
@@ -497,7 +500,7 @@ Pour revenir au tunnel seul, décoche l'option : l'assistant retire le domaine d
 
 Dans l'onglet **Sécurité**, tu peux activer un **code à 6 chiffres** demandé après le mot de passe, avec n'importe quelle application d'authentification : Google Authenticator, Aegis, 2FAS, Bitwarden, 1Password…
 
-1. Clique sur **Configurer**, puis ajoute un compte dans ton application **avec la clé de configuration** affichée. Depuis ton téléphone, le lien « ouvrir directement l'application » le fait pour toi.
+1. Clique sur **Configurer**, puis **scanne le QR code** avec ton application. Impossible de scanner ? Ajoute un compte avec la **clé de configuration** affichée à côté, ou, depuis ton téléphone, touche le lien « ouvrir directement l'application ».
 2. Saisis le code affiché par l'application pour confirmer : c'est activé.
 
 Elle est **optionnelle**, mais fortement conseillée si l'interface est accessible par un nom de domaine. **Téléphone perdu ?** Sur le serveur, `python c411_autodl.py --desactiver-2fa` la désactive (avec Docker : `docker compose exec c411-autodl python c411_autodl.py --desactiver-2fa`).
@@ -579,6 +582,36 @@ Tous les réglages se trouvent dans le fichier `.env`.
 | `BOUCLE_SECONDES` | `0` | Intervalle du mode continu si tu lances le programme sans `--boucle` (`0` = un seul passage) |
 | `REQUEST_DELAY` | `1` | Pause entre deux requêtes vers c411, en secondes |
 | `RATTRAPAGE_MOTS` | `epub,pdf,cbz,…` | Mots-clés utilisés par `--rattrapage` |
+
+### Catégories et budget
+
+Pour surveiller des catégories très différentes (eBooks, musique, films…), les réglages généraux ne suffisent plus : `FORMATS=epub,cbz` écarterait toute la musique. Les **réglages par catégorie** remplacent, pour une catégorie, certains réglages généraux.
+
+| Réglage | Défaut | Description |
+|---|---|---|
+| `PROFILS_CATEGORIES` | *(vide)* | Une ligne par catégorie dans l'interface (ou « ; » entre deux profils dans le `.env`), au format `catégorie: réglage=valeur réglage=valeur` |
+| `BUDGET_JOUR` | *(vide)* | Ce que c411 peut compter en « reçu » par jour, toutes catégories confondues. Les freeleech ne comptent pas. Vide = pas de limite. Exemple : `20Go` |
+
+Exemple :
+
+```
+3010: formats=flac taille_max=2Go par_passage=3
+2030: taille_max=15Go seeders_max=10 par_passage=1 budget_jour=30Go
+2000: completes_min=5
+```
+
+| Réglage du profil | Remplace |
+|---|---|
+| `formats`, `mots_requis`, `mots_exclus` | `FORMATS`, `MOTS_REQUIS`, `EXCLUDE_WORDS` |
+| `taille_min`, `taille_max` | `TAILLE_MIN`, `TAILLE_MAX` |
+| `completes_min`, `seeders_min`, `seeders_max`, `leechers_min` | `MIN_COMPLETED`, `MIN_SEEDERS`, `MAX_SEEDERS`, `MIN_LEECHERS` |
+| `par_passage` | Nombre maximum d'ajouts de cette catégorie par passage (`MAX_PER_RUN` reste la limite totale) |
+| `budget_jour` | Budget quotidien propre à cette catégorie, en plus de `BUDGET_JOUR` |
+
+- La catégorie exacte (`2030`) l'emporte sur sa famille (`2000`), qui vaut pour toutes ses sous-catégories.
+- Ce qu'un profil ne précise pas reste réglé par la configuration générale.
+- Pense à ajouter la catégorie à `C411_CATEGORIES`, sinon elle n'est pas surveillée.
+- Le budget du jour compte ce que c411 comptera vraiment : rien pour un freeleech, la moitié pour un torrent à 50 %. Au-delà, plus rien n'est ajouté jusqu'au lendemain.
 
 ### qBittorrent
 
@@ -685,6 +718,27 @@ Si le programme échoue `ALERTE_APRES` passages d'affilée (seedbox injoignable,
 |---|---|---|
 | `ALERTE_PANNE` | `true` | `false` désactive l'alerte |
 | `ALERTE_APRES` | `3` | Nombre de passages en échec avant l'alerte (3 = 15 min avec un passage toutes les 5 min) |
+| `ALERTE_DISQUE_GO` | `50` | Alerte quand la seedbox passe sous ce nombre de Go libres (`0` = désactivée) |
+| `ALERTE_TRACKER` | `10` | Alerte quand au moins ce nombre de torrents n'a plus de tracker fonctionnel depuis plus d'une heure : maintenance de c411, passkey changée… (`0` = désactivée) |
+| `ALERTE_CERTIFICAT` | `true` | Accès par domaine : alerte si le certificat SSL expire dans moins de 14 jours, ou si l'assistant serveur ne répond plus |
+| `ALERTE_HIT_AND_RUN` | `true` | Alerte quand un torrent pas encore quitte ne seede plus (voir [Suivi Hit & Run](#suivi-hit--run)) |
+
+Les alertes sont vérifiées une fois par heure. Chacune n'est envoyée qu'une fois, puis de nouveau seulement si le problème disparaît et revient.
+
+### Suivi Hit & Run
+
+La règle de c411 : quand tu télécharges un torrent, tu dois le seeder **72 h**, ou atteindre un **ratio de 1,0** sur ce torrent. Le compteur démarre 24 h après le début du téléchargement. (Le système est désactivé sur c411 pour l'instant, mais il peut revenir.)
+
+Le tableau de bord suit chaque torrent ajouté par le programme :
+
+| État | Signification |
+|---|---|
+| **Quitte** | 72 h de seed ou ratio de 1,0 atteints |
+| **En seed** | Il seede normalement, avec le nombre d'heures restantes |
+| **Téléchargement** | Pas encore complet |
+| **À risque** | Pas encore quitte, et il ne seede plus (en pause, arrêté, en erreur, fichiers manquants), ou il est encore en téléchargement plus de 24 h après l'ajout |
+
+Le décompte est **prudent** : il s'appuie sur le temps de seed de qBittorrent, qui ne démarre qu'à la fin du téléchargement. Le suivi ne supprime jamais rien : il te prévient seulement, pour que tu relances le torrent.
 
 ### cross-seed
 

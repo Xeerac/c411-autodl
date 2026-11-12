@@ -1,5 +1,29 @@
 # Historique des versions
 
+## v2.4.0 — 2026-11-12
+
+**Réglages par catégorie et budget quotidien** (nouveau groupe « Catégories et budget ») :
+- `PROFILS_CATEGORIES` : des filtres propres à chaque catégorie, par exemple `3010: formats=flac taille_max=2Go par_passage=3`. Réglages possibles : formats, mots requis ou exclus, tailles, complétés, seeders, leechers, ajouts par passage, budget du jour. Une famille (`2000`) vaut pour toutes ses sous-catégories ; le reste suit la configuration générale ;
+- `BUDGET_JOUR` : ce que c411 peut compter en « reçu » par jour (les freeleech ne comptent pas, un torrent à 50 % compte pour moitié). Ce qu'il reste s'affiche au tableau de bord.
+
+**Suivi Hit & Run** (règle de c411 : 72 h de seed ou ratio de 1,0 par torrent) :
+- panneau du tableau de bord : torrents quittes, en seed (heures restantes), en téléchargement, à risque ;
+- alerte (`ALERTE_HIT_AND_RUN`) quand un torrent pas encore quitte ne seede plus : en pause, arrêté, en erreur, ou bloqué en téléchargement. Une seule fois par torrent.
+
+**Nouvelle page « Ajouts »** : tous les torrents ajoutés par le programme, avec recherche, filtres (type, Hit & Run, rien envoyé, absents de qBittorrent) et tri (date, rendement, envoyé, taille).
+
+**Relevés** : rendement de chaque catégorie au fil des jours (une courbe par catégorie) et ce qu'elle a envoyé en 24 h.
+
+**Actions réelles depuis l'interface**, après confirmation : nettoyage des torrents supprimés de c411, retrait des inactifs, rangement par type (sans déplacer aucun fichier). Impossible en lecture seule.
+
+**Double authentification** : QR code à scanner, généré sans bibliothèque externe.
+
+**Nouvelles alertes** : espace disque bas (`ALERTE_DISQUE_GO`), tracker c411 injoignable pour plusieurs torrents pendant plus d'une heure (`ALERTE_TRACKER`), certificat SSL qui expire ou assistant serveur muet (`ALERTE_CERTIFICAT`).
+
+**Tableau de bord** rééquilibré : le Hit & Run sous les derniers ajouts.
+
+- 180 tests (27 de plus).
+
 ## v2.3.1 — 2026-11-11
 
 **Image Docker prête à l'emploi** (merci à u/Aldarone pour l'idée) :
