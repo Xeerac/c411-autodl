@@ -42,7 +42,7 @@
       {% for sid, (stitle, sdesc) in sections.items() %}
         {% set items = fields | selectattr('section', 'equalto', sid) | list %}
         {% if items %}
-        {% set filled = items | selectattr('stored') | list | length %}
+        {% set filled = (items | selectattr('stored') | list | length) + (items | selectattr('value') | list | length) %}
         <details class="subsection" {% if items | selectattr('error') | list %}open{% endif %}>
           <summary>
             <span class="subsection-title">{{ stitle }}</span>
