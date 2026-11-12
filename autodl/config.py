@@ -56,11 +56,19 @@ class Setting:
     minimum: float | None = None
     aliases: tuple = ()         # anciens noms encore acceptés
     advanced: bool = False      # réglage rarement modifié
+    section: str = ""           # bloc repliable du groupe (SECTIONS), vide = affiché normalement
 
     @property
     def secret(self) -> bool:
         return self.kind == "secret"
 
+
+# Blocs repliables à l'intérieur d'un groupe : identifiant -> (titre, explication)
+SECTIONS: dict[str, tuple[str, str]] = {
+    "webhooks": ("Un salon Discord par type de message",
+                 "Optionnel. Colle le webhook d'un autre salon pour y envoyer ce type de message. "
+                 "Un champ vide = le webhook principal."),
+}
 
 # Groupes, dans l'ordre d'affichage : identifiant -> (titre, description)
 GROUPS: dict[str, tuple[str, str]] = {
@@ -228,19 +236,19 @@ SETTINGS: tuple[Setting, ...] = (
             "Webhook principal : tous les messages, sauf ceux qui ont leur propre webhook ci-dessous."),
     # Un webhook par type de message (vide = webhook principal) : un salon Discord par sujet
     Setting("DISCORD_WEBHOOK_AJOUTS", "discord_webhook_ajout", "secret", "", "notifications",
-            "Webhook : ajouts", "Torrents ajoutés à la seedbox. Vide = webhook principal."),
+            "Ajouts", "Torrents ajoutés à la seedbox.", section="webhooks"),
     Setting("DISCORD_WEBHOOK_RETRAITS", "discord_webhook_retrait", "secret", "", "notifications",
-            "Webhook : retraits", "Torrents supprimés de c411 et torrents inactifs retirés. Vide = webhook principal."),
+            "Retraits", "Supprimés de c411 et inactifs retirés.", section="webhooks"),
     Setting("DISCORD_WEBHOOK_BILAN", "discord_webhook_bilan", "secret", "", "notifications",
-            "Webhook : bilan quotidien", "Vide = webhook principal."),
+            "Bilan quotidien", "", section="webhooks"),
     Setting("DISCORD_WEBHOOK_DISQUE", "discord_webhook_disque", "secret", "", "notifications",
-            "Webhook : alerte espace disque", "Vide = webhook principal."),
+            "Espace disque", "", section="webhooks"),
     Setting("DISCORD_WEBHOOK_TRACKER", "discord_webhook_tracker", "secret", "", "notifications",
-            "Webhook : alerte tracker c411", "Vide = webhook principal."),
+            "Tracker c411", "", section="webhooks"),
     Setting("DISCORD_WEBHOOK_SSL", "discord_webhook_ssl", "secret", "", "notifications",
-            "Webhook : alerte certificat SSL", "Vide = webhook principal."),
+            "Certificat SSL", "", section="webhooks"),
     Setting("DISCORD_WEBHOOK_HIT_AND_RUN", "discord_webhook_hitrun", "secret", "", "notifications",
-            "Webhook : alerte Hit & Run", "Vide = webhook principal."),
+            "Hit & Run", "", section="webhooks"),
     Setting("TELEGRAM_BOT_TOKEN", "telegram_token", "secret", "", "notifications", "Token du bot Telegram"),
     Setting("TELEGRAM_CHAT_ID", "telegram_chat", "str", "", "notifications", "Identifiant Telegram"),
     Setting("NOTIF_PAUSES", "notif_pauses", "bool", True, "notifications", "Prévenir des pauses liées au ratio"),

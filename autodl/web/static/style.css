@@ -729,3 +729,30 @@ body.auth {
 /* page Ajouts : l'étiquette Hit & Run passe sous l'état, au lieu d'être coupée */
 .table-ajouts .cell-state { white-space: normal; }
 .table-ajouts .hr-tag { display: table; margin: .3rem 0 0; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- bloc repliable dans un groupe (ex : webhooks par type) */
+.subsection { border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface-2); }
+.subsection summary { display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem; cursor: pointer; list-style: none; }
+.subsection summary::-webkit-details-marker { display: none; }
+.subsection summary::before { content: ""; width: .45rem; height: .45rem; flex: none; border-right: 2px solid var(--text-3);
+                              border-bottom: 2px solid var(--text-3); transform: rotate(-45deg);
+                              transition: transform var(--fast) var(--ease); }
+.subsection[open] summary::before { transform: rotate(45deg); }
+.subsection-title { font-weight: 600; font-size: var(--fs-sm); }
+.subsection-count { margin-left: auto; font-size: var(--fs-xs); color: var(--text-3); padding: .2rem .55rem;
+                    border-radius: 999px; background: var(--surface-3); white-space: nowrap; }
+.subsection-count.is-on { color: var(--accent); background: var(--accent-soft); }
+.subsection-desc { margin: 0; padding: 0 1rem .8rem 2.25rem; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
+.compact-fields { display: grid; border-top: 1px solid var(--line-2); }
+.compact-fields .field { grid-template-columns: 11rem minmax(0, 1fr); align-items: center; gap: .2rem 1rem;
+                         padding: .6rem 1rem; border-bottom: 1px solid var(--line); }
+.compact-fields .field:last-child { border-bottom: 0; }
+.compact-fields .field-top { grid-row: span 2; }
+.compact-fields .env-name { display: none; }
+.compact-fields .field small { grid-column: 2; font-size: var(--fs-xs); }
+.compact-fields input { min-height: 36px; padding: .4rem .7rem; }
+@media (max-width: 720px) {
+  .compact-fields .field { grid-template-columns: 1fr; }
+  .compact-fields .field-top { grid-row: auto; }
+  .compact-fields .field small { grid-column: 1; }
+}

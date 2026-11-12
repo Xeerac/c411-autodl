@@ -33,7 +33,7 @@ def fields(group: str, values: dict[str, str], errors: list[str], submitted: dic
             "input_type": INPUT_TYPES.get(s.kind, "text"), "required": s.required, "advanced": s.advanced,
             "choices": s.choices, "placeholder": _placeholder(s),
             "error": next((e for e in errors if e.startswith(s.env) or f" {s.env} " in f" {e} "), None),
-            "step": "any" if s.kind == "float" else "1", "min": s.minimum,
+            "step": "any" if s.kind == "float" else "1", "min": s.minimum, "section": s.section,
         }
         if s.secret:
             field.update(value="", stored=bool(current))  # jamais la valeur

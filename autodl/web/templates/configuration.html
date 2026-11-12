@@ -27,9 +27,25 @@
 
     <form method="post" action="/configuration/{{ groupe }}" class="form" id="config-form" data-groupe="{{ groupe }}" autocomplete="off">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      {% set basic = fields | rejectattr('advanced') | list %}
+      {% set basic = fields | rejectattr('advanced') | rejectattr('section') | list %}
       {% set advanced = fields | selectattr('advanced') | list %}
       {% for f in basic %}{% include "_champ.html" %}{% endfor %}
+      {% for sid, (stitle, sdesc) in sections.items() %}
+        {% set items = fields | selectattr('section', 'equalto', sid) | list %}
+        {% if items %}
+        {% set filled = items | selectattr('stored') | list | length %}
+        <details class="subsection" {% if items | selectattr('error') | list %}open{% endif %}>
+          <summary>
+            <span class="subsection-title">{{ stitle }}</span>
+            <span class="subsection-count {{ 'is-on' if filled else '' }}">{{ filled }} sur {{ items | length }} configuré{{ 's' if filled > 1 else '' }}</span>
+          </summary>
+          <p class="subsection-desc">{{ sdesc }}</p>
+          <div class="compact-fields">
+            {% for f in items %}{% include "_champ.html" %}{% endfor %}
+          </div>
+        </details>
+        {% endif %}
+      {% endfor %}
       {% if advanced %}
       <details class="advanced" {% if advanced | selectattr('error') | list %}open{% endif %}>
         <summary>Réglages avancés <span class="muted">({{ advanced | length }})</span></summary>

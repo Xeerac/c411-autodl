@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..commun import __version__, log
 from .. import domaine, journal
-from ..config import GROUPS, SETTINGS, build_cfg
+from ..config import GROUPS, SECTIONS, SETTINGS, build_cfg
 from ..engine import TASKS
 from ..releves import Releves
 from ..tableau import Dashboard
@@ -299,7 +299,7 @@ def create_app(engine, auth: Auth, store, config_errors: list[str] | None = None
     # ------------------------------------------------------------------ configuration
 
     def page_context(request: Request, session: dict, **extra) -> dict:
-        return {"session": session, "csrf": session["csrf"], "groups": GROUPS,
+        return {"session": session, "csrf": session["csrf"], "groups": GROUPS, "sections": SECTIONS,
                 "etat": state["engine"].snapshot() if state["engine"] else None,
                 "config_errors": state["config_errors"], **extra}
 
