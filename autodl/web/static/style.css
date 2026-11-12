@@ -726,3 +726,6 @@ body.auth {
 .qr-wrap { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
 .qr { width: 220px; height: 220px; border-radius: var(--r-sm); background: #fff; image-rendering: pixelated; flex: none; }
 .qr-side { display: grid; gap: .55rem; flex: 1 1 260px; min-width: 0; }
+/* page Ajouts : l'étiquette Hit & Run passe sous l'état, au lieu d'être coupée */
+.table-ajouts .cell-state { white-space: normal; }
+.table-ajouts .hr-tag { display: table; margin: .3rem 0 0; white-space: nowrap; }
