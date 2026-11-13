@@ -759,7 +759,10 @@ Au premier lancement, les torrents déjà terminés ne sont **pas** renvoyés : 
 | Réglage | Défaut | Description |
 |---|---|---|
 | `BILAN_QUOTIDIEN` | `false` | `true` = un bilan par jour, dans le journal et sur Discord/Telegram |
-| `BILAN_HEURE` | `8` | Heure d'envoi (0 à 23). C'est aussi l'heure du relevé quotidien de l'onglet « Relevés » |
+| `BILAN_HEURE` | `8` | Heure d'envoi (0 à 23). C'est aussi l'heure du relevé quotidien de l'onglet « Relevés » et du récap du profil |
+| `RECAP_PROFIL` | `false` | `true` = à la même heure, un récap de ton **profil c411** (voir ci-dessous). Nécessite la clé API Profil |
+
+**Récap du profil c411** : niveau et XP (avec une barre de progression), classe, emblème et étoiles, bonus de l'arbre, quêtes, avancement des quatre voies (seed, upload, spécialisation, compétitivité), Zen (solde, gagné, dépensé), ratio **officiel** et ratio **mesuré par le tracker** (sans le crédit acheté ou offert), envoyé et reçu, équipe, et l'état du compte (téléchargement bloqué, freeleech, bonus) quand il y a quelque chose à signaler. Chaque jour, il est comparé à la veille : XP gagnée, quêtes terminées, Zen gagné ou dépensé. Avec le [bot Discord](#bot-discord), il a son propre salon (`DISCORD_SALON_PROFIL`) et la commande `/profil` l'affiche à tout moment.
 
 Exemple :
 
@@ -800,6 +803,7 @@ Plutôt qu'un webhook, tu peux utiliser un **bot Discord**. Il envoie chaque typ
 | `/ratio` | Ratio c411, total envoyé et reçu, marge au-dessus du minimum |
 | `/bilan` | Le bilan depuis le dernier bilan quotidien, sans le remplacer |
 | `/hitrun` | Les torrents pas encore quittes (72 h de seed ou ratio de 1,0) |
+| `/profil` | Ton profil c411 : niveau, quêtes, voies, Zen, ratio |
 | `/pause`, `/reprise`, `/passage` | Mettre les ajouts en pause, les reprendre, lancer un passage tout de suite |
 | `/aide` | La liste des commandes, visible par toi seul |
 
@@ -822,7 +826,7 @@ Plutôt qu'un webhook, tu peux utiliser un **bot Discord**. Il envoie chaque typ
 | `DISCORD_SERVEUR` | *(vide)* | Identifiant du serveur |
 | `DISCORD_SALON` | *(vide)* | Identifiant du salon principal |
 | `DISCORD_ROLE` | *(vide)* | Identifiant du rôle autorisé à utiliser les commandes |
-| `DISCORD_SALON_AJOUTS`, `_RETRAITS`, `_BILAN`, `_DISQUE`, `_TRACKER`, `_SSL`, `_HIT_AND_RUN` | *(vide)* | Un salon par type de message (vide = salon principal) |
+| `DISCORD_SALON_AJOUTS`, `_RETRAITS`, `_BILAN`, `_DISQUE`, `_TRACKER`, `_SSL`, `_HIT_AND_RUN`, `_PROFIL` | *(vide)* | Un salon par type de message (vide = salon principal) |
 
 Sans l'interface, les identifiants se copient dans Discord avec le **mode développeur** (Paramètres → Avancés), puis un clic droit sur le serveur, le salon ou le rôle → **Copier l'identifiant**.
 

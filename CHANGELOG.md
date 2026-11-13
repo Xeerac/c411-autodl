@@ -1,5 +1,19 @@
 # Historique des versions
 
+## v2.6.0 — 2026-11-13
+
+**Récap quotidien du profil c411** (`RECAP_PROFIL`, à l'heure du bilan) :
+- niveau et XP avec une barre de progression, classe, emblème et étoiles, bonus de l'arbre ;
+- quêtes et avancement des quatre voies (seed, upload, spécialisation, compétitivité) ;
+- Zen (solde, gagné, dépensé), ratio officiel et ratio mesuré par le tracker (sans le crédit), envoyé et reçu, équipe ;
+- état du compte quand il y a quelque chose à signaler : téléchargement bloqué (et pourquoi), freeleech, silver leech, bonus ;
+- comparaison avec la veille : XP gagnée, niveaux, quêtes terminées, Zen gagné ou dépensé, envoyé depuis hier ;
+- bot Discord : salon « Profil » (`DISCORD_SALON_PROFIL`) et nouvelle commande `/profil`.
+
+Bot Discord : plus d'avertissements inutiles de discord.py sur la voix dans le journal.
+
+- 195 tests (5 de plus).
+
 ## v2.5.0 — 2026-11-12
 
 **Bot Discord** (optionnel, `DISCORD_BOT_ACTIF`), à la place du webhook :
